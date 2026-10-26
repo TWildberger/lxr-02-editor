@@ -4,6 +4,7 @@ add_library(kitforge_core STATIC
     src/KitOps.cpp
     src/Librarian.cpp
     src/Midi.cpp
+    src/ParamSync.cpp
     src/ParamTable.cpp
     src/Pattern.cpp
     src/SdCard.cpp
@@ -16,7 +17,11 @@ target_include_directories(kitforge_core PUBLIC include)
 
 find_package(SQLite3 QUIET)
 if(SQLite3_FOUND)
-    target_link_libraries(kitforge_core PRIVATE SQLite::SQLite3)
+    if(TARGET SQLite3::SQLite3)
+        target_link_libraries(kitforge_core PRIVATE SQLite3::SQLite3)
+    else()
+        target_link_libraries(kitforge_core PRIVATE SQLite::SQLite3)
+    endif()
 else()
     message(STATUS "System SQLite3 not found, fetching the amalgamation")
     FetchContent_Declare(sqlite_amalgamation

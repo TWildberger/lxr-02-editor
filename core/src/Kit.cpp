@@ -75,6 +75,11 @@ int Kit::sanitize()
             params_[(size_t) i] = 0;
             ++changed;
         }
+        else if (info.dtype == DType::VoiceLfo && (params_[(size_t) i] < 1 || params_[(size_t) i] > kNumVoices))
+        {
+            params_[(size_t) i] = 1;
+            ++changed;
+        }
     }
     return changed;
 }

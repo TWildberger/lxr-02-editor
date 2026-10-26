@@ -32,7 +32,7 @@ public:
     void set(int param, int value); // stored raw; use ParamTable::clamp for UI input
     const std::array<uint8_t, kNumSoundParams>& params() const { return params_; }
 
-    /** Applies the corrections the firmware applies when loading a kit (invalid mod targets -> 0). */
+    /** Applies the corrections the firmware applies when loading a kit (invalid mod targets -> 0, invalid LFO target voice -> 1). */
     int sanitize();
     /** Clamps every sound parameter into its editor range. Factory kits may legitimately hold
         out-of-range bytes (e.g. hidden reverb FX type 5), so this is never applied implicitly. */

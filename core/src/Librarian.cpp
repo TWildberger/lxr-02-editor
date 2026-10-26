@@ -145,6 +145,10 @@ std::unique_ptr<Librarian> Librarian::open(const std::string& path, std::string*
         sqlite3_close(db);
         return nullptr;
     }
+    // several plugin instances may share one library file
+    sqlite3_busy_timeout(db, 3000);
+    if (path != ":memory:")
+        sqlite3_exec(db, "PRAGMA journal_mode = WAL;", nullptr, nullptr, nullptr);
     std::unique_ptr<Librarian> lib(new Librarian(db));
     const char* schema = R"SQL(
         PRAGMA foreign_keys = ON;

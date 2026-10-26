@@ -13,6 +13,7 @@ add_executable(kitforge_tests
     test_sysex.cpp
     test_kit_ops.cpp
     test_librarian.cpp
+    test_param_sync.cpp
 )
 target_link_libraries(kitforge_tests PRIVATE kitforge::core Catch2::Catch2WithMain)
 target_compile_definitions(kitforge_tests PRIVATE

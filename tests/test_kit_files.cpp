@@ -61,8 +61,10 @@ TEST_CASE("sanitize mirrors the firmware; clampToRanges is explicit")
     Kit k;
     k.set(pid::PAR_TARGET_LFO1, 240);
     k.set(pid::PAR_FX_DRY_WET, 120);
-    CHECK(k.sanitize() == 1);
+    k.set(pid::PAR_VOICE_LFO3, 0);
+    CHECK(k.sanitize() == 2);
     CHECK(k.get(pid::PAR_TARGET_LFO1) == 0);
+    CHECK(k.get(pid::PAR_VOICE_LFO3) == 1);
     CHECK(k.get(pid::PAR_FX_DRY_WET) == 120);
     CHECK(k.clampToRanges() == 1);
     CHECK(k.get(pid::PAR_FX_DRY_WET) == 100);
