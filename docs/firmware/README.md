@@ -1,7 +1,7 @@
 # Vendored firmware documents
 
 Copied verbatim from [TWildberger/lxr-02-firmware](https://github.com/TWildberger/lxr-02-firmware),
-branch `twildberger-lxr-02-firmware-sysex-protocol`, commit `4e1c930`:
+branch `twildberger-lxr-02-firmware-sysex-protocol`, commit `706e062` ([PR #1](https://github.com/TWildberger/lxr-02-firmware/pull/1)):
 
 | File | Purpose |
 |------|---------|

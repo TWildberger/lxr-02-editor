@@ -134,8 +134,15 @@ std::string ParamTable::fullName(int index)
     std::string s;
     if (p.voice > 0)
         s = std::string(voiceName(p.voice)) + " ";
-    if (p.section && std::string(p.section) != "FX" && std::string(p.section) != "Global")
-        s += std::string(p.section) + " ";
+    const std::string label = p.label;
+    if (p.section)
+    {
+        const std::string section = p.section;
+        const bool repeated = label.compare(0, section.size(), section) == 0
+                              && (label.size() == section.size() || label[section.size()] == ' ');
+        if (section != "FX" && section != "Global" && !repeated)
+            s += section + " ";
+    }
     return s + p.label;
 }
 

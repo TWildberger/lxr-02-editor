@@ -203,7 +203,7 @@ TEST_CASE("pattern transfer: .pat <-> raw, chunking and reassembly")
         CHECK(st == (i + 1 == chunks.size() ? ext::PatternReceiver::State::Complete : ext::PatternReceiver::State::Receiving));
     }
     CHECK(rx->data() == *raw);
-    CHECK(rx->slot() == 5);
+    CHECK(rx->slot() == 5); // chunks carry the real slot, also when 7F was requested
 
     // out-of-order chunks fail
     ext::PatternReceiver bad;

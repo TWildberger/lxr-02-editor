@@ -150,6 +150,7 @@ TEST_CASE("value formatting mirrors the device display")
     CHECK(ParamTable::formatValue(pid::PAR_TARGET_LFO1, 0) == "none");
     CHECK(ParamTable::formatValue(pid::PAR_TARGET_LFO1, 2) == "D1 Osc Coarse");
     CHECK(ParamTable::fullName(pid::PAR_COARSE2) == "Drum 2 Osc Coarse");
+    CHECK(ParamTable::fullName(pid::PAR_MIDI_NOTE1) == "Drum 1 MIDI Note"); // no "MIDI MIDI"
     CHECK(std::string(ParamTable::fxParamLabel(4, pid::PAR_FX_P1)) == "Time");
 }
 
