@@ -79,7 +79,13 @@ ParamControl::ParamControl(KitForgeProcessor& p, int param, bool showLabel) : pr
             });
             combo_.onChange = [this] {
                 if (combo_.getSelectedId() > 0)
-                    attachment_->setValueAsCompleteGesture((float) (combo_.getSelectedId() - 1 + min_));
+                {
+                    const int value = combo_.getSelectedId() - 1 + min_;
+                    if (param_ == pid::PAR_FX_TYPE && proc_.rawValue(param_) > ParamTable::get(param_).maxValue)
+                        proc_.setValue(param_, value);
+                    else
+                        attachment_->setValueAsCompleteGesture((float) value);
+                }
             };
             attachment_->sendInitialUpdate();
             addAndMakeVisible(combo_);
@@ -112,6 +118,14 @@ juce::String ParamControl::labelText() const
 
 void ParamControl::refresh()
 {
+    if (param_ == pid::PAR_FX_TYPE && kind_ == Kind::Combo)
+    {
+        const int raw = proc_.rawValue(param_);
+        if (raw > ParamTable::get(param_).maxValue)
+            combo_.setText(raw == 6 ? "frz (extended)" : "FX " + juce::String(raw) + " (raw)", juce::dontSendNotification);
+        else
+            combo_.setSelectedId(raw - min_ + 1, juce::dontSendNotification);
+    }
     label_.setText(labelText(), juce::dontSendNotification);
     const bool locked = proc_.isLocked(param_);
     label_.setColour(juce::Label::textColourId, locked ? colours::locked : colours::dim);

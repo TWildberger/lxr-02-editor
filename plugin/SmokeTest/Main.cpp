@@ -7,6 +7,7 @@
 #include <iostream>
 
 #include "../Source/PluginProcessor.h"
+#include "../Source/ParamControl.h"
 #include "kitforge/Midi.h"
 #include "kitforge/ParamTable.h"
 
@@ -48,6 +49,78 @@ bool contains(const std::vector<uint8_t>& hay, const std::vector<uint8_t>& needl
 {
     return std::search(hay.begin(), hay.end(), needle.begin(), needle.end()) != hay.end();
 }
+
+juce::TextButton* findButton(juce::Component& root, const juce::String& text)
+{
+    if (auto* b = dynamic_cast<juce::TextButton*>(&root); b && b->getButtonText() == text)
+        return b;
+    for (auto* child : root.getChildren())
+        if (auto* b = findButton(*child, text))
+            return b;
+    return nullptr;
+}
+
+// Minimal device-side kit RAM, not a DSP/hardware simulation.
+struct KitDevice
+{
+    Bytes edit = Kit().toSnd();
+    std::array<Bytes, ext::kNumSlots> slots;
+    std::vector<ext::Message> received;
+    juce::MidiBuffer midi;
+
+    void run(KitForgeProcessor& proc, int timeoutMs, std::function<bool()> done)
+    {
+        juce::AudioBuffer<float> audio(2, 256);
+        const auto end = juce::Time::getMillisecondCounter() + (juce::uint32) timeoutMs;
+        while (juce::Time::getMillisecondCounter() < end)
+        {
+            proc.processBlock(audio, midi);
+            juce::MidiBuffer replies;
+            for (const auto meta : midi)
+            {
+                const auto m = ext::parse(Bytes(meta.data, meta.data + meta.numBytes));
+                if (!m)
+                    continue;
+                received.push_back(*m);
+                Bytes reply;
+                switch (m->command)
+                {
+                    case ext::Command::EchoSet:
+                        reply = ext::ack(0, m->command, m->on ? 1 : 0);
+                        break;
+                    case ext::Command::KitDump:
+                        if (m->slot == ext::kEditBuffer)
+                            edit = m->data;
+                        else
+                            slots[(size_t) m->slot] = m->data;
+                        reply = ext::ack(0, m->command, m->slot);
+                        break;
+                    case ext::Command::KitStore:
+                        slots[(size_t) m->slot] = edit;
+                        reply = ext::ack(0, m->command, m->slot);
+                        break;
+                    case ext::Command::KitLoad:
+                        edit = slots[(size_t) m->slot];
+                        reply = ext::ack(0, m->command, m->slot);
+                        break;
+                    case ext::Command::KitRequest:
+                        reply = ext::kitDump(0, m->slot, 0, m->slot == ext::kEditBuffer ? edit : slots[(size_t) m->slot]);
+                        break;
+                    case ext::Command::GlobalsRequest:
+                        reply = ext::globalsDump(0, 0, kFirstGlobal, Globals().toCfg());
+                        break;
+                    default: break;
+                }
+                if (!reply.empty())
+                    replies.addEvent(reply.data(), (int) reply.size(), 0);
+            }
+            midi.swapWith(replies);
+            if (done())
+                return;
+            pump(5);
+        }
+    }
+};
 } // namespace
 
 int main(int argc, char** argv)
@@ -68,7 +141,14 @@ int main(int argc, char** argv)
         kit.set(pid::PAR_COARSE1, 70);
         const int transWave = pid::PAR_TRANS6_WAVE;
         kit.set(transWave, ParamTable::get(transWave).maxValue + 11);
-        proc.loadKit(kit, KitForgeProcessor::LoadOrigin::User);
+        const auto legacyKit = kit;
+        check(kit.setEngineSettings(1, 1, 100), "feedback-FM opt-in");
+        proc.loadKit(legacyKit, KitForgeProcessor::LoadOrigin::User);
+        proc.setValues(kit, {});
+        proc.undo();
+        check(proc.currentKit() == legacyKit, "undo engine opt-in restores untagged bytes exactly");
+        proc.redo();
+        check(proc.currentKit() == kit, "redo engine opt-in restores all tagged bytes");
         check(proc.currentKit() == kit, "kit bytes preserved after load (including an out-of-range byte)");
         check(proc.kitName() == "Smoke", "kit name");
         auto* coarse = proc.parameterFor(pid::PAR_COARSE1);
@@ -113,6 +193,8 @@ int main(int argc, char** argv)
         check(runBlocks(proc, 1000, [&](const auto& o) { return contains(o, probe); }, out), "identity request sent on plugin MIDI out");
         runBlocks(proc, 1500, [&](const auto&) { return proc.device().mode() == DeviceSession::Mode::Stock; }, out);
         check(proc.device().mode() == DeviceSession::Mode::Stock, "no reply -> stock firmware mode");
+        check(!proc.device().supportsFreeze(), "freeze unavailable on stock firmware");
+        proc.device().sendFreeze(5);
         out.clear();
         runBlocks(proc, 4000, [&](const auto&) { return false; }, out); // drain the initial kit resend
         out.clear();
@@ -122,6 +204,8 @@ int main(int argc, char** argv)
         check(runBlocks(proc, 1000, [&](const auto& o) { return contains(o, expected); }, out), "edit sent as CC on stock firmware");
 
         // 6. An extended identity reply switches to extended mode.
+        proc.setSendOnLoad(false);
+        proc.setPullOnConnect(false);
         ext::Identity id;
         id.fwMajor = 1;
         id.fwMinor = 8;
@@ -151,6 +235,65 @@ int main(int argc, char** argv)
         out.clear();
         runBlocks(proc, 1000, [&](const auto&) { return proc.device().isExtended(); }, out);
         check(proc.device().isExtended(), "identity reply -> extended mode (" + proc.device().describe() + ")");
+        check(!proc.device().supportsFreeze(), "freeze unavailable when identity bit 8 is absent");
+        KitDevice simulated;
+        std::atomic<bool> sent { false };
+        proc.device().sendKit(4, kit, 0, [&](bool ok, const auto&) { sent = ok; });
+        simulated.run(proc, 2000, [&] { return sent.load(); });
+        check(sent && simulated.slots[4].size() == 255, "old extended firmware receives a legacy kit body");
+        check(proc.currentKit().hasEngineExtension(), "old-device transfer does not truncate editor kit");
+        out.clear();
+        proc.device().sendFreeze(5);
+        runBlocks(proc, 100, [&](const auto&) { return false; }, out);
+        check(!contains(out, ext::fxFreeze(0x7F, 5)), "unsupported freeze sends no command");
+
+        // Both optional features live above the original capability byte.
+        id.capabilities = 0x1FF;
+        proc.device().detect();
+        out.clear();
+        check(runBlocks(proc, 1000, [&](const auto& o) { return contains(o, probe); }, out), "second identity request");
+        const auto extendedReply = ext::identityReply(id);
+        in.clear();
+        in.addEvent(extendedReply.data(), (int) extendedReply.size(), 0);
+        proc.processBlock(audio, in);
+        runBlocks(proc, 1000, [&](const auto&) { return proc.device().supportsFreeze(); }, out);
+        check(proc.device().supportsFreeze(), "identity bit 8 enables freeze");
+        sent = false;
+        proc.device().sendKit(ext::kEditBuffer, kit, 0, [&](bool ok, const auto&) { sent = ok; });
+        simulated.run(proc, 2000, [&] { return sent.load(); });
+        check(sent && simulated.edit == kit.toSnd(), "new firmware receives full tagged kit with n=247");
+        std::atomic<bool> stored { false }, loaded { false }, fetched { false };
+        proc.device().storeKit(5, ext::kFlagSave, [&](bool ok, const auto&) { stored = ok; });
+        proc.device().loadKitSlot(5, [&](bool ok, const auto&) { loaded = ok; });
+        proc.device().requestKit(ext::kEditBuffer, [&](std::optional<Kit> back, const auto&) {
+            fetched = back && back->toSnd() == kit.toSnd();
+        });
+        simulated.run(proc, 2000, [&] { return stored && loaded && fetched; });
+        check(stored && loaded && fetched && simulated.slots[5] == kit.toSnd(),
+              "kit dump/store/load/request preserves all extension bytes");
+        auto oversized = kit.toSnd();
+        oversized.resize(300, 0xFF);
+        bool rejected = false;
+        proc.device().sendKit(6, Kit::fromSnd(oversized), 0, [&](bool ok, const auto& msg) {
+            rejected = !ok && msg.contains("maximum frame length");
+        });
+        check(rejected, "oversized opaque extension reports transfer failure instead of truncating");
+        proc.device().sendFreeze(5);
+        out.clear();
+        check(runBlocks(proc, 1000, [&](const auto& o) { return contains(o, ext::fxFreeze(0x7F, 5)); }, out),
+              "freeze rate frame sent without waiting for ACK");
+        proc.device().releaseFreeze();
+        out.clear();
+        check(runBlocks(proc, 1000, [&](const auto& o) { return contains(o, ext::fxFreeze(0x7F, 0)); }, out),
+              "freeze release frame sent");
+        const auto nak = ext::nak(0, ext::Command::FxFreeze, ext::Error::Range, 3);
+        in.clear();
+        in.addEvent(nak.data(), (int) nak.size(), 0);
+        proc.processBlock(audio, in);
+        runBlocks(proc, 500, [&](const auto&) { return proc.logLines().joinIntoString("\n").contains("Device rejected FX_FREEZE"); }, out);
+        check(proc.logLines().joinIntoString("\n").contains("Device rejected FX_FREEZE")
+                  && proc.logLines().joinIntoString("\n").contains(", 3)"),
+              "device freeze NAK is reported");
 
         // 7. Library + editor snapshots.
         if (auto* lib = proc.library())
@@ -170,6 +313,48 @@ int main(int argc, char** argv)
             if (auto* t = dynamic_cast<juce::TabbedComponent*>(c))
                 tabs = t;
         check(tabs != nullptr && tabs->getNumTabs() == 11, "editor has 11 pages");
+        if (tabs)
+            tabs->setCurrentTabIndex(10);
+        pump(20);
+        auto* freezeButton = findButton(*editor, "Hold freeze");
+        check(freezeButton && freezeButton->isEnabled(), "Device page freeze control enabled by capability bit 8");
+        auto* selectFreeze = findButton(*editor, "Select frz FX");
+        check(selectFreeze != nullptr, "Device page offers explicit freeze FX selection");
+        if (selectFreeze)
+        {
+            selectFreeze->triggerClick();
+            pump(100);
+            simulated.run(proc, 1000, [&] { return simulated.edit == proc.currentKit().toSnd(); });
+            check(proc.rawValue(pid::PAR_FX_TYPE) == 6 && Kit::fromSnd(simulated.edit).get(pid::PAR_FX_TYPE) == 6,
+                  "freeze FX selection reaches the device without clamping type 6");
+            ParamControl fxControl(proc, pid::PAR_FX_TYPE);
+            fxControl.refresh();
+            juce::ComboBox* fxCombo = nullptr;
+            for (auto* child : fxControl.getChildren())
+                if (auto* box = dynamic_cast<juce::ComboBox*>(child))
+                    fxCombo = box;
+            check(fxCombo && fxCombo->getText() == "frz (extended)", "FX control shows raw frz instead of a clamped legacy type");
+            if (fxCombo)
+            {
+                fxCombo->setSelectedId(ParamTable::get(pid::PAR_FX_TYPE).maxValue + 1, juce::sendNotificationSync);
+                check(proc.rawValue(pid::PAR_FX_TYPE) == ParamTable::get(pid::PAR_FX_TYPE).maxValue,
+                      "legacy FX choice replaces frz even when the host parameter was already clamped to that choice");
+            }
+            selectFreeze->triggerClick();
+            pump(100);
+            simulated.run(proc, 1000, [&] { return simulated.edit == proc.currentKit().toSnd(); });
+        }
+        if (freezeButton)
+        {
+            freezeButton->setState(juce::Button::buttonDown);
+            out.clear();
+            check(runBlocks(proc, 1000, [&](const auto& o) { return contains(o, ext::fxFreeze(0x7F, 5)); }, out),
+                  "hold button sends selected freeze rate");
+            freezeButton->setState(juce::Button::buttonNormal);
+            out.clear();
+            check(runBlocks(proc, 1000, [&](const auto& o) { return contains(o, ext::fxFreeze(0x7F, 0)); }, out),
+                  "hold button release sends freeze off");
+        }
         const juce::File outDir = argc > 1 ? juce::File::getCurrentWorkingDirectory().getChildFile(argv[1]) : juce::File();
         if (outDir != juce::File())
             outDir.createDirectory();
@@ -188,6 +373,9 @@ int main(int argc, char** argv)
                 juce::PNGImageFormat().writeImageToStream(img, os);
             }
         }
+        proc.device().setAllowExtended(false);
+        pump(100);
+        check(freezeButton && !freezeButton->isEnabled(), "freeze UI becomes unavailable without extended identity support");
         editor.reset();
     }
     tmp.deleteRecursively();

@@ -140,6 +140,7 @@ private:
     std::array<std::atomic<int>, kNumSoundParams> raw_;
     mutable std::mutex nameLock_;
     std::array<uint8_t, Kit::kNameBytes> name_ {};
+    Bytes extension_; // guarded by nameLock_, like the raw kit name
     std::atomic<bool> loading_ { false };
 
     Globals globals_;

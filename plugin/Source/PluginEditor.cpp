@@ -206,6 +206,11 @@ void KitForgeEditor::loadKitFile(const juce::File& f)
         return;
     const auto* d = static_cast<const uint8_t*>(mb.getData());
     std::string warning;
+    if (f.getFileName().equalsIgnoreCase("tmp.snd"))
+    {
+        proc_.addLog("Cannot open tmp.snd as a named kit: it is a slot-prefixed autosave, not a normal .snd file");
+        return;
+    }
     const Kit k = Kit::fromSnd(Bytes(d, d + mb.getSize()), &warning);
     proc_.loadKit(k, KitForgeProcessor::LoadOrigin::User);
     proc_.addLog("Opened " + f.getFileName() + (warning.empty() ? juce::String() : " (" + juce::String(warning) + ")"));

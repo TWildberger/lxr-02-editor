@@ -94,7 +94,7 @@ std::string nameFromData(FileKind kind, const Bytes& data, const std::string& pa
     return fs::path(path).stem().string();
 }
 
-/** Canonical bytes used for storage/dedupe: kits padded to 255, patterns upgraded to V3. */
+/** Canonical bytes: kits padded to 255 with suffix intact, patterns upgraded to V3. */
 std::optional<Bytes> canonicalise(FileKind kind, const Bytes& data, std::string* error)
 {
     switch (kind)
@@ -213,6 +213,12 @@ std::optional<Librarian::AddResult> Librarian::add(FileKind kind, const std::str
 
 std::optional<Librarian::AddResult> Librarian::importFile(const std::string& path, std::string* error)
 {
+    if (lower(fs::path(path).filename().string()) == "tmp.snd")
+    {
+        if (error)
+            *error = "tmp.snd is an autosave, not a named kit; use the explicit autosave codec";
+        return std::nullopt;
+    }
     const auto kind = filenames::kindFromPath(path);
     if (kind == FileKind::Unknown || kind == FileKind::ProjectInfo)
     {
@@ -451,7 +457,7 @@ std::optional<std::string> Librarian::exportItem(int64_t id, const std::string& 
 
     Bytes data = item->data;
     if (item->kind == FileKind::Kit || item->kind == FileKind::Pattern || item->kind == FileKind::Song)
-        if (data.size() >= 8)
+        if (data.size() >= 8 && decodeName(data.data(), 8) != item->name)
             encodeName(item->name, data.data(), 8); // reflect renames in the file header
 
     std::error_code ec;

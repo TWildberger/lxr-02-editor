@@ -34,22 +34,33 @@ and restores the autosaved kit and pattern. Saving a project writes
 `prj.nfo`, `glo.cfg` and all 64 kits and patterns into `/projNN`.
 `preset_saveGlobals()` writes `glo.cfg` into the *current* folder.
 
-## `.snd`: kit (255 bytes)
+## `.snd`: kit (255 bytes legacy, 261 bytes with engine extension)
 
 | Offset | Size | Content |
 |--------|------|---------|
 | 0 | 8 | Kit name |
 | 8 | 247 | Sound parameters 0 … 246 (`END_OF_SOUND_PARAMETERS`), one byte each, in parameter id order |
+| 255 | 6 (optional) | ASCII `EngV01`, explicit feedback-FM engine container version |
 
 * Values are stored exactly as held in memory. Modulation destination
   parameters (`PAR_VEL_DEST_*`, `PAR_TARGET_LFO*`) hold an index into
   `mod_targets` (`params.json`).
 * Shorter files (older firmware with fewer sound parameters) are accepted.
   Missing parameters read as 0.
-* SysEx `KIT_DUMP` carries the same 255 bytes (see [sysex.md](sysex.md)).
+* SysEx `KIT_DUMP` carries the same bytes including the suffix, but its declared
+  parameter count remains **247** (see [sysex.md](sysex.md)).
+* With the exact tag, IDs 221-223 select the engine for Drum 1-3 (0 legacy,
+  1 feedback FM); IDs 224-226 hold static timbre decay (0-127). Firmware clears
+  these six formerly reserved bytes when loading an untagged kit. KitForge
+  preserves raw bytes rather than applying this migration during file reads.
+* Older firmware may drop the tag when saving, reverting to the legacy engine.
+  Back up tagged kits before using older firmware. Unknown suffixes remain
+  opaque in KitForge and are never reinterpreted as parameters.
 
 `tmp.snd` (autosave of the edit buffer) has a different layout: 1 byte kit
-slot number + 247 parameter bytes, and no name.
+slot number + 247 parameter bytes, and no name (248 bytes legacy). Tagged
+autosaves append the same `EngV01` suffix (254 bytes). Use the explicit
+`Kit::fromTmpSnd` / `toTmpSnd` codecs; a short named kit is not an autosave.
 
 ## `.pat`: pattern (3663 bytes)
 

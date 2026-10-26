@@ -148,6 +148,7 @@ Kit KitForgeProcessor::currentKit() const
     std::lock_guard<std::mutex> g(nameLock_);
     Bytes snd = k.toSnd();
     std::copy(name_.begin(), name_.end(), snd.begin());
+    snd.insert(snd.end(), extension_.begin(), extension_.end());
     return Kit::fromSnd(snd);
 }
 
@@ -199,6 +200,7 @@ void KitForgeProcessor::applyKitToParameters(const Kit& kit)
     {
         std::lock_guard<std::mutex> g(nameLock_);
         name_ = kit.rawName();
+        extension_ = kit.extension();
     }
     for (int i = 0; i < kNumSoundParams; ++i)
         if (auto* p = params_[(size_t) i])
@@ -213,14 +215,23 @@ void KitForgeProcessor::applyKitToParameters(const Kit& kit)
 
 void KitForgeProcessor::setValues(const Kit& kit, const juce::String& undoLabel)
 {
+    const auto before = currentKit();
     pushUndo();
     applyKitToParameters(kit);
+    // Engine controls are deliberately not legacy host parameters. Send the versioned container.
+    if (before.extension() != kit.extension()
+        || !std::equal(before.params().begin() + Kit::kEngineFirst,
+                       before.params().begin() + Kit::kTimbreDecayFirst + 3,
+                       kit.params().begin() + Kit::kEngineFirst))
+        if (device_->isExtended())
+            pushKitToDevice();
     if (undoLabel.isNotEmpty())
         addLog(undoLabel);
 }
 
 void KitForgeProcessor::loadKit(const Kit& kit, LoadOrigin origin)
 {
+    const auto before = currentKit();
     if (origin == LoadOrigin::User || origin == LoadOrigin::Device)
         pushUndo();
     applyKitToParameters(kit);
@@ -240,7 +251,13 @@ void KitForgeProcessor::loadKit(const Kit& kit, LoadOrigin origin)
                 sync_.markInSync(kit);
             break;
         case LoadOrigin::History:
-            break; // the difference is streamed as parameter changes
+            if (before.extension() != kit.extension()
+                || !std::equal(before.params().begin() + Kit::kEngineFirst,
+                               before.params().begin() + Kit::kTimbreDecayFirst + 3,
+                               kit.params().begin() + Kit::kEngineFirst))
+                if (device_->isExtended())
+                    pushKitToDevice();
+            break; // other differences are streamed as parameter changes
     }
     historyChanged.sendChangeMessage();
 }
@@ -466,6 +483,7 @@ void KitForgeProcessor::deviceParamsChanged(const std::vector<ext::ParamPair>& p
 {
     post([this, pairs] {
         bool globalsChanged = false;
+        bool engineChanged = false;
         for (const auto& pr : pairs)
         {
             if (pr.id < 0 || pr.id >= kNumParams)
@@ -473,6 +491,7 @@ void KitForgeProcessor::deviceParamsChanged(const std::vector<ext::ParamPair>& p
             sync_.noteDeviceValue(pr.id, pr.value);
             if (pr.id < kNumSoundParams)
             {
+                engineChanged |= pr.id >= Kit::kEngineFirst && pr.id < Kit::kTimbreDecayFirst + 3;
                 raw_[(size_t) pr.id].store(pr.value);
                 if (auto* p = params_[(size_t) pr.id])
                     p->setValueNotifyingHost(p->convertTo0to1((float) ParamTable::clamp(pr.id, pr.value)));
@@ -483,7 +502,9 @@ void KitForgeProcessor::deviceParamsChanged(const std::vector<ext::ParamPair>& p
                 globalsChanged = true;
             }
         }
-        if (globalsChanged)
+        if (engineChanged && device_->identity().has(ext::CapEngineTrailer))
+            pullKitFromDevice(); // only a container readback can establish the engine version tag
+        if (globalsChanged || engineChanged)
             kitChanged.sendChangeMessage();
     });
 }

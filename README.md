@@ -22,7 +22,7 @@ a full SysEx mode with kit dump/load, readback and slot management.
 - Randomize, with an amount setting, for a voice or the whole kit. Right-click any
   control to lock it against randomizing.
 - Morph the kit halfway towards the other A/B kit.
-- Every sound parameter is exposed to the host for automation. The plugin state
+- Every legacy sound parameter is exposed to the host for automation. The plugin state
   stores the whole kit byte-exactly and sends it to the device on session recall.
 - Globals page for all global settings (MIDI channels and notes, clock, filters,
   and so on), with glo.cfg open/save and send/fetch in extended mode.
@@ -39,10 +39,46 @@ a full SysEx mode with kit dump/load, readback and slot management.
 - Batch send to device slots and fetch from slots (extended firmware).
 
 **File formats**
-- .snd (8-byte name plus 247 parameter bytes), .pat (V1–V3, written as V3) and
+- .snd (8-byte name plus 247 parameter bytes and an optional engine trailer), .pat (V1–V3, written as V3) and
   glo.cfg (30 bytes stock, 33 bytes extended).
 - The parsers keep every byte, including out-of-range values found in factory kits.
   Round-trip tests check that all 216 factory kits come back byte-identical.
+
+### Optional firmware extensions
+
+Firmware [freeze PR](https://github.com/TWildberger/lxr-02-firmware/pull/5) and
+[feedback-FM PR](https://github.com/TWildberger/lxr-02-firmware/pull/6) add opt-in
+features without changing the 247-byte sound array.
+
+- Drum 1-3 have static **Engine** (Legacy / Feedback FM) and **Timbre decay**
+  controls. Editing them explicitly opts the kit into the `EngV01` container.
+  These controls are not host-automated or randomized; existing automation IDs
+  and stock MIDI mappings are unchanged.
+- The **Device** page offers Select frz FX, a rate selector (eight divisions or
+  P1), Hold freeze and Release. Freeze is enabled only after an identity reply
+  advertises **capability bit 8**. Missing firmware support is shown explicitly.
+  There is no success ACK; a transmitted trigger does not confirm engagement.
+  Device NAKs (including wrong FX type) and transport failures appear in the log.
+- Named kits remain 255 bytes when legacy, or 261 with `EngV01`. The suffix
+  survives files, projects, library deduplication/database/export, plugin state,
+  undo/A-B and SysEx. Unknown suffixes are retained opaquely; engine edits are
+  disabled rather than overwriting them.
+- **Capability bit 7** enables trailer transfers. Without it KitForge sends a
+  legacy 255-byte kit and logs a warning, retaining the original editor/library
+  bytes. Older firmware can ignore/drop the trailer and play the legacy engine;
+  saving there loses the opt-in. Keep a tagged backup before using older firmware.
+
+Freeze releases when the hold is let go, the Device page is hidden/closed, or
+the route/device configuration changes. Disconnect release is best effort:
+plugin MIDI still needs a host audio block and a live route to deliver it.
+Release on the device if a host stops processing or the MIDI link is lost.
+No hardware testing is implied by the automated protocol tests.
+
+The core also provides explicit `fromTmpSnd` / `toTmpSnd` autosave codecs for
+248-byte legacy / 254-byte tagged `tmp.snd` (slot, 247 parameters, suffix).
+Autosaves have no name and must not be parsed as named `.snd` files.
+The UI/librarian rejects `tmp.snd` imports rather than corrupting their layout;
+autosave editing/conversion is currently core-API only.
 
 ## Device connection
 

@@ -71,3 +71,20 @@ TEST_CASE("project load/save round trip")
     CHECK(*again.patterns[0] == *prj.patterns[0]);
     fs::remove_all(tmp);
 }
+
+TEST_CASE("project save and load keep versioned engine kits byte-exactly")
+{
+    Project project;
+    Kit k;
+    k.setName("Engine");
+    REQUIRE(k.setEngineSettings(3, 1, 127));
+    project.kits[4] = k;
+    const auto dir = fs::temp_directory_path() / "kitforge_engine_project_test";
+    REQUIRE(project.save(dir.string()));
+    std::vector<std::string> warnings;
+    const auto back = Project::load(dir.string(), &warnings);
+    CHECK(warnings.empty());
+    REQUIRE(back.kits[4]);
+    CHECK(back.kits[4]->toSnd() == k.toSnd());
+    fs::remove_all(dir);
+}

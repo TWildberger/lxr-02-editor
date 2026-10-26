@@ -50,12 +50,16 @@ private:
     void showCopyMenu();
     void showRandomizeMenu();
     void resetVoice();
+    void editEngine();
 
     KitForgeProcessor& proc_;
     const int voice_;
     juce::Label title_;
     juce::TextButton copy_ { "Copy voice to..." }, randomize_ { "Randomize..." }, reset_ { "Reset voice" };
     juce::Viewport viewport_;
+    juce::Label engineLabel_ { {}, "Engine" }, timbreLabel_ { {}, "Timbre decay" };
+    juce::ComboBox engine_;
+    juce::Slider timbreDecay_;
     Content content_;
     std::unique_ptr<juce::ParameterAttachment> fxTypeWatch_;
     std::mt19937 rng_ { std::random_device {}() };

@@ -86,6 +86,10 @@ public:
     void requestPattern(int slot, std::function<void(std::optional<Bytes>, const juce::String&)> done);
     void sendPattern(int slot, const Bytes& raw, int flags, Done done);
     void setEcho(bool on);
+    bool supportsFreeze() const { return isExtended() && identity().has(ext::CapFreeze); }
+    /** Fire-and-forget, never waits for an ACK. Device NAKs appear in the Device log. */
+    void sendFreeze(int value);
+    void releaseFreeze();
 
     /** Loads a RAM kit slot: KIT_LOAD in extended mode, CC0 bank select on stock firmware. */
     void loadKitSlot(int slot, Done done);
@@ -146,6 +150,8 @@ private:
     };
     Ring pluginOut_ { 1 << 15 }, pluginIn_ { 1 << 16 }, portIn_ { 1 << 16 };
     std::mutex rawLock_;
+    std::mutex transmitLock_;
+    std::atomic<bool> freezeEngaged_ { false };
     std::vector<Bytes> rawOut_;
     sysex::Assembler pluginAsm_, portAsm_;
 
