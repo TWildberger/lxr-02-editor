@@ -306,9 +306,13 @@ constexpr int PAR_MIDI_NOTE5 = 298;
 constexpr int PAR_MIDI_NOTE6 = 299;
 constexpr int PAR_MIDI_NOTE7 = 300;
 constexpr int PAR_PATTERN_MODE = 301;
+constexpr int PAR_SYSEX_ENABLE = 302;
+constexpr int PAR_SYSEX_DEVICE_ID = 303;
+constexpr int PAR_SYSEX_ECHO = 304;
 
-constexpr int NUM_PARAMS = 302;
+constexpr int NUM_PARAMS = 305;
 constexpr int END_OF_SOUND_PARAMETERS = 247;
 constexpr int PAR_BEGINNING_OF_GLOBALS = 272;
+constexpr int STOCK_NUM_GLOBALS = 30;
 
 } // namespace kitforge::pid

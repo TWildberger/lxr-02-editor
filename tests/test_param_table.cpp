@@ -7,15 +7,18 @@
 
 #include "kitforge/ParamTable.h"
 
+#include <nlohmann/json.hpp>
+
 using namespace kitforge;
 
 TEST_CASE("param table layout matches firmware enum")
 {
     REQUIRE(ParamTable::size() == kNumParams);
-    REQUIRE(kNumParams == 302);
+    REQUIRE(kNumParams == 305);
     REQUIRE(kNumSoundParams == 247);
     REQUIRE(kFirstGlobal == 272);
-    REQUIRE(kNumGlobals == 30);
+    REQUIRE(kNumGlobals == 33);
+    REQUIRE(pid::STOCK_NUM_GLOBALS == 30);
     for (int i = 0; i < ParamTable::size(); ++i)
         REQUIRE(ParamTable::get(i).index == i);
 
@@ -24,6 +27,9 @@ TEST_CASE("param table layout matches firmware enum")
     CHECK(pid::PAR_MORPH_KIT_DEST == 246);
     CHECK(pid::PAR_BPM == 272);
     CHECK(pid::PAR_PATTERN_MODE == 301);
+    CHECK(pid::PAR_SYSEX_ENABLE == 302);
+    CHECK(pid::PAR_SYSEX_DEVICE_ID == 303);
+    CHECK(pid::PAR_SYSEX_ECHO == 304);
 }
 
 TEST_CASE("scopes partition the parameter space")
@@ -163,15 +169,79 @@ TEST_CASE("clamp respects ranges")
     CHECK(ParamTable::clamp(pid::PAR_TARGET_LFO1, 500) == 228);
 }
 
-TEST_CASE("generated table agrees with docs/params.json")
+TEST_CASE("generated table agrees with docs/editor-params.json")
 {
     std::ifstream in(KITFORGE_PARAMS_JSON);
     REQUIRE(in);
-    std::stringstream ss;
-    ss << in.rdbuf();
-    const auto json = ss.str();
-    // light-weight check without a JSON dependency: every param id appears in the document
-    for (int i = 0; i < kNumParams; ++i)
-        CHECK(json.find(std::string("\"") + ParamTable::get(i).id + "\"") != std::string::npos);
-    CHECK(json.find("\"numParams\": 302") != std::string::npos);
+    const auto doc = nlohmann::json::parse(in);
+    CHECK(doc["numParams"] == kNumParams);
+    REQUIRE(doc["params"].size() == (size_t) kNumParams);
+    for (const auto& p : doc["params"])
+    {
+        const auto& info = ParamTable::get(p["index"].get<int>());
+        CHECK(p["id"] == info.id);
+        CHECK(p["min"] == info.minValue);
+        CHECK(p["max"] == info.maxValue);
+        CHECK(p["default"] == info.defaultValue);
+    }
+}
+
+// The vendored table from the firmware fork is authoritative; deviations must be deliberate.
+TEST_CASE("generated table agrees with the vendored firmware params.json")
+{
+    std::ifstream in(KITFORGE_VENDORED_PARAMS_JSON);
+    REQUIRE(in);
+    const auto v = nlohmann::json::parse(in);
+    CHECK(v["counts"]["NUM_PARAMS"] == kNumParams);
+    CHECK(v["counts"]["END_OF_SOUND_PARAMETERS"] == kNumSoundParams);
+    CHECK(v["counts"]["PAR_BEGINNING_OF_GLOBALS"] == kFirstGlobal);
+    CHECK(v["counts"]["globals"] == kNumGlobals);
+    CHECK(v["counts"]["stock_v1_7_globals"] == pid::STOCK_NUM_GLOBALS);
+    CHECK(v["counts"]["mod_targets"] == ParamTable::numModTargets());
+
+    const std::set<std::string> userSampleWaves { "PAR_OSC_WAVE_DRUM1", "PAR_OSC_WAVE_DRUM2", "PAR_OSC_WAVE_DRUM3",
+                                                  "PAR_OSC_WAVE_SNARE", "PAR_WAVE1_CYM", "PAR_WAVE1_HH",
+                                                  "PAR_MOD_WAVE_DRUM1", "PAR_MOD_WAVE_DRUM2", "PAR_MOD_WAVE_DRUM3",
+                                                  "PAR_WAVE2_CYM", "PAR_WAVE3_CYM", "PAR_WAVE2_HH", "PAR_WAVE3_HH",
+                                                  "PAR_FX_WAVE" };
+    for (const auto& p : v["params"])
+    {
+        const int id = p["id"];
+        const auto& info = ParamTable::get(id);
+        INFO(info.id);
+        if (id != 1)
+            CHECK(p["symbol"] == info.id);
+        if (info.scope != Scope::Sound && info.scope != Scope::Global)
+            continue;
+        if (!(userSampleWaves.count(info.id) && p["max"] == 5))
+            CHECK(p["max"] == info.maxValue);
+        else
+            CHECK(info.maxValue == 69);
+        if (id != pid::PAR_MIDI_CHAN_GLOBAL)
+            CHECK(p["min"] == info.minValue);
+        if (p["midi"].is_null())
+            CHECK(info.midiKind == MidiKind::None);
+        else
+        {
+            CHECK(p["midi"]["type"] == (info.midiKind == MidiKind::CC ? "cc" : "nrpn"));
+            CHECK(p["midi"]["number"] == info.midiNumber);
+        }
+        if (p.contains("snd_offset"))
+            CHECK(p["snd_offset"] == 8 + id);
+        if (p.contains("glo_cfg_offset"))
+            CHECK(p["glo_cfg_offset"] == id - kFirstGlobal);
+    }
+    const auto& targets = v["mod_targets"];
+    REQUIRE(targets.size() == (size_t) ParamTable::numModTargets());
+    for (size_t i = 0; i < targets.size(); ++i)
+    {
+        CHECK(targets[i]["param"] == ParamTable::modTargets()[i].param);
+        CHECK((targets[i]["voice"].is_null() ? 0 : targets[i]["voice"].get<int>()) == ParamTable::modTargets()[i].voice);
+    }
+    for (const auto& r : v["mod_target_voice_ranges"])
+    {
+        const auto range = ParamTable::modTargetRange(r["voice"]);
+        CHECK(r["start"] == range.first);
+        CHECK(r["end"] == range.last);
+    }
 }

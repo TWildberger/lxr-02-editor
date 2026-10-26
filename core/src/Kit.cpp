@@ -115,18 +115,22 @@ Globals Globals::fromCfg(const Bytes& data, std::string* warning)
     const size_t n = std::min(data.size(), (size_t) kFileSize);
     for (size_t i = 0; i < n; ++i)
         g.values_[i] = data[i];
+    // keep the stock layout when reading a stock file so it round-trips byte for byte
+    g.fileSize_ = data.size() > (size_t) kStockFileSize ? kFileSize : kStockFileSize;
     if (warning)
     {
         warning->clear();
-        if (data.size() < (size_t) kFileSize)
+        if (data.size() < (size_t) kStockFileSize)
             *warning = "short glo.cfg (" + std::to_string(data.size()) + " bytes); missing values keep defaults";
+        else if (data.size() > (size_t) kStockFileSize && data.size() < (size_t) kFileSize)
+            *warning = "glo.cfg has " + std::to_string(data.size()) + " bytes; missing extended settings keep defaults";
         else if (data.size() > (size_t) kFileSize)
             *warning = "glo.cfg has trailing bytes, ignored";
     }
     return g;
 }
 
-Bytes Globals::toCfg() const { return Bytes(values_.begin(), values_.end()); }
+Bytes Globals::toCfg() const { return Bytes(values_.begin(), values_.begin() + fileSize_); }
 
 int Globals::get(int param) const
 {
@@ -138,7 +142,11 @@ void Globals::set(int param, int value)
 {
     const int i = param - kFirstGlobal;
     if (i >= 0 && i < kNumGlobals)
+    {
         values_[(size_t) i] = (uint8_t) std::clamp(value, 0, 255);
+        if (i >= kStockFileSize)
+            fileSize_ = kFileSize;
+    }
 }
 
 } // namespace kitforge

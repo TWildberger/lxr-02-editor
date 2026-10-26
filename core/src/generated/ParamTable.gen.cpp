@@ -334,6 +334,9 @@ const ParamInfo kParams[] = {
     { 299, "PAR_MIDI_NOTE6", "midi_note6", "MIDI Note", "MIDI", 6, Scope::Global, DType::Note, 0, 127, 48, 0, nullptr, 0, MidiKind::None, 0, nullptr, 231, 0 },
     { 300, "PAR_MIDI_NOTE7", "midi_note7", "MIDI Note (Open HH)", "MIDI", 6, Scope::Global, DType::Note, 0, 127, 48, 0, nullptr, 0, MidiKind::None, 0, nullptr, 234, 0 },
     { 301, "PAR_PATTERN_MODE", "pattern_mode", "Kit Change Mode", "Global", 0, Scope::Global, DType::Menu, 0, 1, 1, 23, kMENU_PAT_MODE, 2, MidiKind::None, 0, nullptr, 254, 0 },
+    { 302, "PAR_SYSEX_ENABLE", "sysex_enable", "SysEx", "MIDI", 0, Scope::Global, DType::OnOff, 0, 1, 1, 0, nullptr, 0, MidiKind::None, 0, nullptr, 265, 0 },
+    { 303, "PAR_SYSEX_DEVICE_ID", "sysex_device_id", "Device ID", "MIDI", 0, Scope::Global, DType::U1_16, 1, 16, 1, 0, nullptr, 0, MidiKind::None, 0, nullptr, 266, 0 },
+    { 304, "PAR_SYSEX_ECHO", "sysex_echo", "Param Echo", "MIDI", 0, Scope::Global, DType::OnOff, 0, 1, 0, 0, nullptr, 0, MidiKind::None, 0, nullptr, 267, 0 },
 };
 
 const ModTargetInfo kModTargets[] = {

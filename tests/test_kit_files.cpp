@@ -77,7 +77,21 @@ TEST_CASE("glo.cfg round-trips")
     const auto g = Globals::fromCfg(bytes);
     CHECK(g.toCfg() == bytes);
     CHECK(g.get(pid::PAR_BPM) == 120);
-    CHECK(Globals().toCfg() == bytes);
+    CHECK(g.fileSize() == Globals::kStockFileSize);
+    CHECK(g.get(pid::PAR_SYSEX_ENABLE) == 1); // fork defaults for settings a stock file lacks
+    CHECK(g.get(pid::PAR_SYSEX_DEVICE_ID) == 1);
+    CHECK(g.get(pid::PAR_SYSEX_ECHO) == 0);
+
+    // a default Globals uses the extended 33-byte layout whose first 30 bytes are the stock file
+    const auto ext = Globals().toCfg();
+    REQUIRE(ext.size() == 33);
+    CHECK(Bytes(ext.begin(), ext.begin() + 30) == bytes);
+    CHECK(Globals::fromCfg(ext).toCfg() == ext);
+
+    // editing an extended setting upgrades a stock file
+    auto g2 = g;
+    g2.set(pid::PAR_SYSEX_ECHO, 1);
+    CHECK(g2.toCfg().size() == 33);
 }
 
 // Optional: byte-exact round trip over real factory kits. Point KITFORGE_FACTORY_KITS_DIR at a folder of .snd files.

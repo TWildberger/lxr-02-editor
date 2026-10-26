@@ -2,7 +2,12 @@
 """Generate the parameter table for the LXR-02 editor from the firmware source.
 
 Usage:
-    tools/gen_params.py <firmware-repo-root> [--out-json docs/params.json]
+    tools/gen_params.py <firmware-repo-root> [--vendored docs/firmware/params.json] [--out-json docs/editor-params.json]
+
+The vendored params.json (from the TWildberger/lxr-02-firmware fork, see docs/firmware/README.md) is
+authoritative for ids, symbols, ranges, MIDI numbers and modulation targets. The firmware source only
+supplies editor presentation (labels, sections, ordering) and init-kit defaults. Any disagreement that
+is not listed in VENDORED_OVERRIDES aborts generation.
                         [--out-cpp core/src/generated/ParamTable.gen.cpp]
                         [--out-h core/include/kitforge/ParamIds.gen.h]
 
@@ -225,12 +230,91 @@ PITCH_PM63 = {
 FX_TYPE_PAGES = ["off", "drv", "rng", "cmp", "del", "rev"]
 
 
+# Deliberate, documented deviations from docs/firmware/params.json.
+VENDORED_OVERRIDES = {
+    "max": {
+        # the editor exposes the 64 user-sample slots (s0..s63); the device clamps to the samples it has
+        **{n: "user samples s0..s63" for n in (
+            "PAR_OSC_WAVE_DRUM1", "PAR_OSC_WAVE_DRUM2", "PAR_OSC_WAVE_DRUM3", "PAR_OSC_WAVE_SNARE",
+            "PAR_WAVE1_CYM", "PAR_WAVE1_HH", "PAR_MOD_WAVE_DRUM1", "PAR_MOD_WAVE_DRUM2", "PAR_MOD_WAVE_DRUM3",
+            "PAR_WAVE2_CYM", "PAR_WAVE3_CYM", "PAR_WAVE2_HH", "PAR_WAVE3_HH", "PAR_FX_WAVE")},
+    },
+    "min": {
+        "PAR_MIDI_CHAN_GLOBAL": "0 = unset/all, the value presetManager initialises",
+    },
+    # the stock enum aliases id 1 as PAR_MOD_WHEEL; the editor uses the descriptive name
+    "symbol": {"PAR_OSC_WAVE_DRUM1": "PAR_MOD_WHEEL"},
+}
+
+# Globals added by the fork (ids 302..304); defaults per docs/firmware/file-formats.md
+FORK_GLOBALS = {
+    "PAR_SYSEX_ENABLE": ("SysEx", 1),
+    "PAR_SYSEX_DEVICE_ID": ("Device ID", 1),
+    "PAR_SYSEX_ECHO": ("Param Echo", 0),
+}
+
+
+def apply_vendored(params, vendored_path, mod_targets_doc):
+    v = json.load(open(vendored_path))
+    vp = {p["id"]: p for p in v["params"]}
+    errors = []
+    by_id = {p["index"]: p for p in params}
+    next_order = max(p.get("order", 0) for p in params) + 1
+    for i in range(v["counts"]["NUM_PARAMS"]):
+        f = vp[i]
+        m = by_id.get(i)
+        if m is None:
+            sym = f["symbol"]
+            if sym not in FORK_GLOBALS or f["scope"] != "global":
+                errors.append(f"{i} {sym}: unknown parameter in vendored table")
+                continue
+            kind, lo, hi = DTYPE_MAP["DTYPE_" + f["dtype"]]
+            label, default = FORK_GLOBALS[sym]
+            m = {"index": i, "id": sym, "key": sym[4:].lower(), "scope": "global", "dtype": kind,
+                 "min": f["min"], "max": f["max"], "default": default, "voice": 0, "section": "MIDI",
+                 "label": label, "order": next_order, "midi": {"kind": "none"},
+                 "note": "Extended firmware only (TWildberger/lxr-02-firmware)"}
+            next_order += 1
+            params.append(m)
+            by_id[i] = m
+            continue
+        if f["symbol"] != m["id"] and VENDORED_OVERRIDES["symbol"].get(m["id"]) != f["symbol"]:
+            errors.append(f"{i}: symbol {m['id']} != {f['symbol']}")
+        for field in ("min", "max"):
+            if f[field] != m[field]:
+                if m["id"] in VENDORED_OVERRIDES[field]:
+                    continue
+                if m["scope"] not in ("sound", "global"):
+                    m[field] = f[field]  # sequencer/reserved: just adopt
+                    continue
+                errors.append(f"{i} {m['id']}: {field} {m[field]} != vendored {f[field]}")
+        fm = f["midi"]
+        fk = (fm["type"], fm["number"]) if fm else ("none", 0)
+        mk = (m["midi"]["kind"], m["midi"].get("number", 0))
+        if fk != mk:
+            errors.append(f"{i} {m['id']}: midi {mk} != vendored {fk}")
+        if f.get("display_offset") is not None and m["dtype"] == "pm63" and -f["display_offset"] != m.get("displayOffset"):
+            errors.append(f"{i} {m['id']}: display offset {m.get('displayOffset')} != vendored {-f['display_offset']}")
+    vt = v["mod_targets"]
+    if len(vt) != len(mod_targets_doc):
+        errors.append(f"mod target count {len(mod_targets_doc)} != vendored {len(vt)}")
+    for a, b in zip(vt, mod_targets_doc):
+        if a["param"] != b["param"] or (a["voice"] or 0) != b["voice"]:
+            errors.append(f"mod target {a['index']}: ({b['param']},{b['voice']}) != vendored ({a['param']},{a['voice']})")
+    vr = [(r["start"], r["end"]) for r in v["mod_target_voice_ranges"]]
+    if errors:
+        sys.exit("vendored params.json disagrees with the firmware source:\n  " + "\n  ".join(errors))
+    params.sort(key=lambda p: p["index"])
+    return v, vr
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("fw")
     here = os.path.dirname(os.path.abspath(__file__))
     root = os.path.dirname(here)
-    ap.add_argument("--out-json", default=os.path.join(root, "docs/params.json"))
+    ap.add_argument("--vendored", default=os.path.join(root, "docs/firmware/params.json"))
+    ap.add_argument("--out-json", default=os.path.join(root, "docs/editor-params.json"))
     ap.add_argument("--out-cpp", default=os.path.join(root, "core/src/generated/ParamTable.gen.cpp"))
     ap.add_argument("--out-h", default=os.path.join(root, "core/include/kitforge/ParamIds.gen.h"))
     a = ap.parse_args()
@@ -453,6 +537,15 @@ def main():
             entry["note"] = PSEUDO[n]
         params.append(entry)
 
+    targets_doc = [{"param": pvals[pname], "voice": next((vi + 1 for vi, (s0, e0) in enumerate(voice_offsets) if s0 <= i <= e0), 0)}
+                   for i, (_, pname) in enumerate(mod_targets)]
+    vendored, vendored_ranges = apply_vendored(params, a.vendored, targets_doc)
+    if vendored_ranges != [tuple(r) for r in voice_offsets]:
+        sys.exit(f"mod target voice ranges differ: {voice_offsets} vs {vendored_ranges}")
+    num_params = vendored["counts"]["NUM_PARAMS"]
+    if (end_sound, first_global) != (vendored["counts"]["END_OF_SOUND_PARAMETERS"], vendored["counts"]["PAR_BEGINNING_OF_GLOBALS"]):
+        sys.exit("kit/global boundaries differ from the vendored table")
+
     # stable integer ordering
     ordered = sorted([p for p in params if "order" in p], key=lambda p: p["order"])
     for i, p in enumerate(ordered):
@@ -477,7 +570,10 @@ def main():
         targets.append({"index": i, "param": pvals[pname], "id": pname, "voice": voice, "label": lab})
 
     doc = {
-        "source": "Generated by tools/gen_params.py from the GPL-3.0 firmware source (Core/Inc/Parameters.h, Core/Src/menu/menu.c, Core/Inc/menu/*.h, Core/Src/menu/Cc2Text.c, Core/Src/Preset/initKit.c)",
+        "source": "Generated by tools/gen_params.py from docs/firmware/params.json (authoritative ids, ranges, MIDI, mod targets) plus editor labels/defaults from the GPL-3.0 firmware source",
+        "vendoredFirmware": vendored["firmware"],
+        "vendoredOverrides": VENDORED_OVERRIDES,
+        "stockNumGlobals": vendored["counts"]["stock_v1_7_globals"],
         "numParams": num_params,
         "numSoundParams": end_sound,
         "firstGlobal": first_global,
@@ -486,7 +582,7 @@ def main():
         "sections": VOICE_SECTIONS + ["FX", "MIDI", "Global"],
         "files": {
             "snd": {"nameBytes": 8, "paramBytes": end_sound, "size": 8 + end_sound},
-            "glo.cfg": {"size": num_params - first_global, "firstParam": first_global},
+            "glo.cfg": {"size": num_params - first_global, "stockSize": vendored["counts"]["stock_v1_7_globals"], "firstParam": first_global},
         },
         "midi": {
             "ccRule": "CC number = param index + 1 for params 1..126 (except pseudo slots 5, 97, 98)",
@@ -527,6 +623,7 @@ def write_header(path, params, doc):
     lines += ["", f"constexpr int NUM_PARAMS = {doc['numParams']};",
               f"constexpr int END_OF_SOUND_PARAMETERS = {doc['numSoundParams']};",
               f"constexpr int PAR_BEGINNING_OF_GLOBALS = {doc['firstGlobal']};",
+              f"constexpr int STOCK_NUM_GLOBALS = {doc['stockNumGlobals']};",
               "", "} // namespace kitforge::pid", ""]
     os.makedirs(os.path.dirname(path), exist_ok=True)
     open(path, "w").write("\n".join(lines))

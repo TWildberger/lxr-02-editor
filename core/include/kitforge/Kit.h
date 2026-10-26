@@ -50,9 +50,15 @@ private:
 class Globals
 {
 public:
-    static constexpr int kFileSize = kNumGlobals; // 30
+    static constexpr int kFileSize = kNumGlobals;                 // 33 (extended firmware)
+    static constexpr int kStockFileSize = pid::STOCK_NUM_GLOBALS; // 30 (stock v1.7)
 
-    Globals(); // firmware defaults
+    Globals(); // firmware defaults, extended (33-byte) layout
+
+    /** Size written by toCfg(): 30 for files read from stock firmware, otherwise 33.
+        Stock firmware reads the first 30 bytes of a 33-byte file, so both are safe. */
+    int fileSize() const { return fileSize_; }
+    void setFileSize(int size) { fileSize_ = size <= kStockFileSize ? kStockFileSize : kFileSize; }
 
     static Globals fromCfg(const Bytes& data, std::string* warning = nullptr);
     Bytes toCfg() const;
@@ -60,11 +66,12 @@ public:
     int get(int param) const;
     void set(int param, int value);
 
-    bool operator==(const Globals& o) const { return values_ == o.values_; }
+    bool operator==(const Globals& o) const { return values_ == o.values_ && fileSize_ == o.fileSize_; }
     bool operator!=(const Globals& o) const { return !(*this == o); }
 
 private:
     std::array<uint8_t, kNumGlobals> values_ {};
+    int fileSize_ = kFileSize;
 };
 
 } // namespace kitforge
