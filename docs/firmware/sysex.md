@@ -128,6 +128,7 @@ Receive rules (device side; hosts should apply the same):
 | `43` | `PARAM_NOTIFY` | device → host | — |
 | `44` | `ECHO_SET` | host → device | `ACK` |
 | `45` | `EVENT` | device → host | — |
+| `46` | `FX_FREEZE` | host → device | none (only `NAK` on error) |
 | `7E` | `ACK` | device → host | — |
 | `7F` | `NAK` | device → host | — |
 
@@ -190,6 +191,12 @@ Capability bits:
 | 3 | Single parameters (`40`–`42`) |
 | 4 | Echo/notifications (`43`–`45`) |
 | 5 | `SAVE` flag (SD card writes) |
+| 6 | CPU status extension (not interpreted by this editor) |
+| 7 | Feedback-FM engine and `EngV01` kit trailer |
+| 8 | `FX_FREEZE` (`46`) |
+
+Capabilities use u14, not a single byte: freeze firmware mask `0x17F` is
+`7F 02` on the wire; combined engine/freeze mask `0x1FF` is `7F 03`.
 
 Hosts must size their buffers from these numbers rather than hard-coding them.
 `NUM_PARAMS`, `END_OF_SOUND_PARAMETERS` and `PAR_BEGINNING_OF_GLOBALS` must
@@ -234,7 +241,13 @@ Example, request the edit buffer: `F0 7D 4C 7F 01 10 7F 11 F7`
 | slot | u7 |
 | flags | u7 (device → host: always 0) |
 | parameter count *n* | u14 (device → host: 247) |
-| data | packed8 of `name[8]` followed by *n* parameter bytes |
+| data | packed8 of `name[8]` followed by *n* parameter bytes and optional extension suffix |
+
+Engine-capable firmware (identity bit 7) appends ASCII `EngV01` inside packed8,
+after all 247 parameters. **n remains 247**, not 253. Legacy and tagged raw
+bodies are 255 and 261 bytes respectively. Preserve suffix bytes independently
+of parameters. KitForge omits the suffix with a warning when uploading to
+firmware without bit 7; local/editor/library data remains intact.
 
 The data is the same layout as an `.snd` file: name, then sound parameters
 0 … *n*−1. See `scope == "sound"` entries in `params.json`. For the edit
@@ -409,7 +422,19 @@ See [section 7](#7-parameter-echo-device--host-notifications).
 | `01` | `KIT_CHANGED` | current kit slot | Edit buffer changed wholesale (kit load, project load, …). Re-request kit `7F` and globals. |
 | `02` | `PATTERN_CHANGED` | active pattern | Active pattern switched |
 
-### 5.17 `ACK` (`7E`) / `NAK` (`7F`)
+### 5.17 `FX_FREEZE` (`46`)
+
+Only send when identity capability bit 8 is set. Payload is one u7:
+0 releases; 1-8 select 1/4, 1/4T, 1/8, 1/8T, 1/16, 1/16T, 1/32, 1/32T;
+`7F` uses FX P1. There is no reply on success. `NAK(46, ERR_RANGE, type)`
+means the FX type is not 6 (`frz`); `ERR_LENGTH` means a missing payload.
+This is transient performance state, not a saved parameter or echoed value.
+Send release on button-up and before disconnecting, while the route is live.
+
+Examples: `F0 7D 4C 7F 01 46 05 3D F7` (1/16);
+`F0 7D 4C 7F 01 46 00 38 F7` (release).
+
+### 5.18 `ACK` (`7E`) / `NAK` (`7F`)
 
 | Field | `ACK` | `NAK` |
 |-------|-------|-------|

@@ -14,6 +14,7 @@ public:
     explicit DevicePage(KitForgeProcessor& p);
     ~DevicePage() override;
     void resized() override;
+    void visibilityChanged() override;
 
 private:
     void changeListenerCallback(juce::ChangeBroadcaster*) override;
@@ -33,6 +34,10 @@ private:
     juce::TextButton detect_ { "Detect" }, sendKit_ { "Send kit" }, getKit_ { "Get kit" }, store_ { "Store kit to slot" },
         loadSlot_ { "Load slot" }, getPattern_ { "Pattern -> library" }, saveDefaults_ { "Save as default" };
     juce::Label status_, problem_;
+    juce::Label freezeLabel_ { {}, "Freeze (needs capability bit 8)" };
+    juce::ComboBox freezeRate_;
+    juce::TextButton freezeFx_ { "Select frz FX" }, freezeHold_ { "Hold freeze" }, freezeRelease_ { "Release" };
+    bool freezeDown_ = false;
     juce::TextEditor log_;
     juce::StringArray outIds_, inIds_;
 };

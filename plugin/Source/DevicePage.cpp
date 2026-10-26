@@ -102,6 +102,33 @@ DevicePage::DevicePage(KitForgeProcessor& p) : proc_(p)
     };
     saveDefaults_.setTooltip("Use this MIDI setup for new plugin instances and the standalone app");
 
+    int rateId = 1;
+    for (const auto* rate : { "1/4", "1/4T", "1/8", "1/8T", "1/16", "1/16T", "1/32", "1/32T" })
+        freezeRate_.addItem(rate, rateId++);
+    freezeRate_.addItem("Use P1", 127);
+    freezeRate_.setSelectedId(5, juce::dontSendNotification);
+    freezeFx_.onClick = [this] {
+        auto k = proc_.currentKit();
+        k.set(pid::PAR_FX_TYPE, 6);
+        proc_.loadKit(k, KitForgeProcessor::LoadOrigin::User);
+    };
+    freezeHold_.onStateChange = [this] {
+        const bool down = freezeHold_.isDown();
+        if (down == freezeDown_)
+            return;
+        freezeDown_ = down;
+        if (down)
+            proc_.device().sendFreeze(freezeRate_.getSelectedId());
+        else
+            proc_.device().releaseFreeze();
+    };
+    freezeRelease_.onClick = [this] { proc_.device().sendFreeze(0); };
+    freezeHold_.setTooltip("Momentary audio freeze. Select frz FX first. NAKs/errors appear in the Device log.");
+    addAndMakeVisible(freezeLabel_);
+    addAndMakeVisible(freezeRate_);
+    for (auto* b : { &freezeFx_, &freezeHold_, &freezeRelease_ })
+        addAndMakeVisible(*b);
+
     for (auto* l : { &routeLabel_, &outLabel_, &inLabel_, &channelLabel_, &idLabel_, &rateLabel_, &slotLabel_ })
     {
         l->setColour(juce::Label::textColourId, colours::dim);
@@ -129,7 +156,20 @@ DevicePage::DevicePage(KitForgeProcessor& p) : proc_(p)
     proc_.deviceChanged.addChangeListener(this);
 }
 
-DevicePage::~DevicePage() { proc_.deviceChanged.removeChangeListener(this); }
+DevicePage::~DevicePage()
+{
+    proc_.device().releaseFreeze();
+    proc_.deviceChanged.removeChangeListener(this);
+}
+
+void DevicePage::visibilityChanged()
+{
+    if (!isShowing())
+    {
+        freezeDown_ = false;
+        proc_.device().releaseFreeze();
+    }
+}
 
 void DevicePage::changeListenerCallback(juce::ChangeBroadcaster*) { refreshStatus(); }
 
@@ -189,6 +229,12 @@ void DevicePage::refreshStatus()
     for (auto* b : { &getKit_, &store_, &getPattern_ })
         b->setEnabled(ext);
     echo_.setEnabled(ext && (dev.identity().capabilities & ext::CapEcho));
+    const bool freeze = dev.supportsFreeze();
+    freezeLabel_.setText(freeze ? "Audio freeze / beat repeat" : "Freeze unavailable: needs firmware capability bit 8",
+                         juce::dontSendNotification);
+    freezeRate_.setEnabled(freeze);
+    for (auto* b : { &freezeFx_, &freezeHold_, &freezeRelease_ })
+        b->setEnabled(freeze);
     const bool live = dev.mode() == DeviceSession::Mode::Stock || ext;
     sendKit_.setEnabled(live);
     loadSlot_.setEnabled(live);
@@ -241,6 +287,15 @@ void DevicePage::resized()
     {
         b->setBounds(slotRow.removeFromLeft(130));
         slotRow.removeFromLeft(6);
+    }
+    left.removeFromTop(8);
+    freezeLabel_.setBounds(left.removeFromTop(24));
+    auto freezeRow = left.removeFromTop(28);
+    freezeRate_.setBounds(freezeRow.removeFromLeft(100));
+    for (auto* b : { &freezeFx_, &freezeHold_, &freezeRelease_ })
+    {
+        freezeRow.removeFromLeft(6);
+        b->setBounds(freezeRow.removeFromLeft(110));
     }
 
     status_.setBounds(r.removeFromTop(28));

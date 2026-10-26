@@ -56,6 +56,88 @@ TEST_CASE("kit names")
     CHECK(k.name() == "ab");
 }
 
+TEST_CASE("engine suffix and unknown extensions round-trip without changing legacy bytes")
+{
+    auto bytes = loadFixture("synthetic.snd");
+    const auto legacy = Kit::fromSnd(bytes);
+    CHECK(legacy.extension().empty());
+    CHECK_FALSE(legacy.hasEngineExtension());
+    bytes.insert(bytes.end(), { 'E', 'n', 'g', 'V', '0', '1' });
+    bytes[Kit::kNameBytes + Kit::kEngineFirst] = 1;
+    bytes[Kit::kNameBytes + Kit::kTimbreDecayFirst] = 127;
+    std::string warning;
+    auto k = Kit::fromSnd(bytes, &warning);
+    CHECK(warning.empty());
+    CHECK(k.hasEngineExtension());
+    CHECK(k.toSnd().size() == 261);
+    CHECK(k.toSnd() == bytes);
+    CHECK(k != legacy);
+    k.set(pid::PAR_COARSE1, 33);
+    k.setName("Renamed");
+    CHECK(k.extension() == Bytes { 'E', 'n', 'g', 'V', '0', '1' });
+
+    for (const Bytes suffix : { Bytes { 'E', 'n', 'g' }, Bytes { 'E', 'n', 'g', 'V', '0', '2', 0xFF } })
+    {
+        auto raw = legacy.toSnd();
+        raw.insert(raw.end(), suffix.begin(), suffix.end());
+        auto unknown = Kit::fromSnd(raw, &warning);
+        CHECK_FALSE(warning.empty());
+        CHECK_FALSE(unknown.hasEngineExtension());
+        CHECK(unknown.toSnd() == raw);
+        CHECK_FALSE(unknown.setEngineSettings(1, 1, 60, &warning));
+        CHECK_FALSE(warning.empty());
+        CHECK(unknown.toSnd() == raw);
+    }
+}
+
+TEST_CASE("engine opt-in clears only formerly reserved bytes and validates settings")
+{
+    auto k = Kit::fromSnd(loadFixture("synthetic.snd"));
+    const auto before = k;
+    REQUIRE(k.setEngineSettings(2, 1, 100));
+    CHECK(k.hasEngineExtension());
+    CHECK(k.get(221) == 0);
+    CHECK(k.get(222) == 1);
+    CHECK(k.get(223) == 0);
+    CHECK(k.get(224) == 0);
+    CHECK(k.get(225) == 100);
+    CHECK(k.get(226) == 0);
+    for (int i = 0; i < kNumSoundParams; ++i)
+        if (i < 221 || i > 226)
+            CHECK(k.get(i) == before.get(i));
+    const auto tagged = k;
+    CHECK_FALSE(k.setEngineSettings(4, 1, 30));
+    CHECK_FALSE(k.setEngineSettings(1, 2, 30));
+    CHECK_FALSE(k.setEngineSettings(1, 1, 128));
+    CHECK(k == tagged);
+}
+
+TEST_CASE("autosave codec preserves slot, parameters and suffix at legacy and extended lengths")
+{
+    for (const bool extended : { false, true })
+    {
+        auto k = Kit::fromSnd(loadFixture("synthetic.snd"));
+        if (extended)
+            REQUIRE(k.setEngineSettings(3, 1, 127));
+        const auto bytes = k.toTmpSnd(63);
+        CHECK(bytes.size() == (extended ? 254 : 248));
+        uint8_t slot = 0;
+        std::string error;
+        auto back = Kit::fromTmpSnd(bytes, slot, &error);
+        REQUIRE(back);
+        CHECK(error.empty());
+        CHECK(slot == 63);
+        CHECK(back->params() == k.params());
+        CHECK(back->extension() == k.extension());
+        CHECK(back->toTmpSnd(slot) == bytes);
+    }
+    uint8_t slot = 7;
+    std::string error;
+    CHECK_FALSE(Kit::fromTmpSnd(Bytes(247), slot, &error));
+    CHECK_FALSE(error.empty());
+    CHECK(slot == 7);
+}
+
 TEST_CASE("sanitize mirrors the firmware; clampToRanges is explicit")
 {
     Kit k;

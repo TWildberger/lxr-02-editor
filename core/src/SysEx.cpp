@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <stdexcept>
 
 #include "kitforge/ParamTable.h"
 #include "kitforge/Pattern.h"
@@ -184,6 +185,7 @@ const char* commandName(Command c)
         case Command::StatusReply: return "STATUS_REPLY";
         case Command::KitRequest: return "KIT_REQUEST";
         case Command::KitDump: return "KIT_DUMP";
+        case Command::FxFreeze: return "FX_FREEZE";
         case Command::KitStore: return "KIT_STORE";
         case Command::KitLoad: return "KIT_LOAD";
         case Command::KitName: return "KIT_NAME";
@@ -254,11 +256,18 @@ Bytes kitDump(int device, int slot, int flags, const Bytes& snd)
     Bytes b;
     u7(b, slot);
     u7(b, flags);
-    u14(b, (int) std::max<size_t>(snd.size(), (size_t) kNameLength) - kNameLength);
+    u14(b, (int) std::min<size_t>(std::max<size_t>(snd.size(), kNameLength) - kNameLength, kNumSoundParams));
     Bytes raw = snd;
     raw.resize(std::max<size_t>(raw.size(), (size_t) kNameLength), ' ');
     packed(b, raw);
     return frame(device, Command::KitDump, b);
+}
+
+Bytes fxFreeze(int device, int value)
+{
+    if (!((value >= 0 && value <= 8) || value == 0x7F))
+        throw std::invalid_argument("FX_FREEZE expects 0..8 or 0x7F");
+    return frame(device, Command::FxFreeze, { (uint8_t) value });
 }
 
 Bytes kitStore(int device, int slot, int flags) { return frame(device, Command::KitStore, { (uint8_t) (slot & 0x7F), (uint8_t) (flags & 0x7F) }); }
@@ -516,7 +525,7 @@ std::optional<Message> parse(const Bytes& f, std::string* error)
             m.slot = r.u7();
             m.flags = r.u7();
             m.count = r.u14();
-            ok = r.ok && unpackRest(m.data) && m.data.size() == (size_t) (kNameLength + m.count);
+            ok = r.ok && unpackRest(m.data) && m.data.size() >= (size_t) (kNameLength + m.count);
             if (ok)
             {
                 m.rawName.assign(m.data.begin(), m.data.begin() + kNameLength);
@@ -557,6 +566,10 @@ std::optional<Message> parse(const Bytes& f, std::string* error)
         case Command::EchoSet:
             expect = 1;
             m.on = r.u7() != 0;
+            break;
+        case Command::FxFreeze:
+            expect = 1;
+            m.arg = r.u7();
             break;
         case Command::Event:
             expect = 3;

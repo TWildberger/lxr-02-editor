@@ -52,6 +52,58 @@ TEST_CASE("import an SD card folder")
     CHECK(rep2.duplicates == 6);
 }
 
+TEST_CASE("engine suffix survives library import, dedupe, database reopen and export")
+{
+    const auto dir = fs::temp_directory_path() / "kitforge_engine_library_test";
+    fs::create_directories(dir);
+    const auto db = dir / "library.sqlite";
+    fs::remove(db);
+    Kit k = Kit::fromSnd(loadFixture("synthetic.snd"));
+    REQUIRE(k.setEngineSettings(1, 1, 90));
+    auto bytes = k.toSnd();
+    bytes[7] = ' '; // unchanged exports must preserve raw name padding too
+    k = Kit::fromSnd(bytes);
+    const auto input = dir / "input.snd";
+    REQUIRE(writeFileBytes(input.string(), bytes));
+    int64_t id = 0;
+    {
+        auto lib = Librarian::open(db.string());
+        REQUIRE(lib);
+        const auto added = lib->importFile(input.string());
+        REQUIRE(added);
+        id = added->id;
+        CHECK(lib->get(id)->data == bytes);
+        CHECK(lib->addKit(k, "editor")->duplicate);
+        const auto autosave = dir / "tmp.snd";
+        const auto tmpBytes = k.toTmpSnd(5);
+        REQUIRE(writeFileBytes(autosave.string(), tmpBytes));
+        std::string error;
+        CHECK_FALSE(lib->importFile(autosave.string(), &error));
+        CHECK_FALSE(error.empty());
+        CHECK(readFileBytes(autosave.string()) == tmpBytes);
+        const auto legacy = Kit::fromSnd(Bytes(bytes.begin(), bytes.begin() + Kit::kFileSize));
+        const auto other = lib->addKit(legacy, "legacy");
+        REQUIRE(other);
+        CHECK_FALSE(other->duplicate);
+        CHECK(other->id != id);
+    }
+    {
+        auto lib = Librarian::open(db.string());
+        REQUIRE(lib);
+        CHECK(lib->get(id)->data == bytes);
+        const auto output = lib->exportItem(id, dir.string(), 2);
+        REQUIRE(output);
+        CHECK(readFileBytes(*output) == bytes);
+        CHECK(lib->rename(id, "New"));
+        const auto renamed = lib->exportItem(id, dir.string(), 3);
+        REQUIRE(renamed);
+        auto expected = k;
+        expected.setName("New");
+        CHECK(readFileBytes(*renamed) == expected.toSnd());
+    }
+    fs::remove_all(dir);
+}
+
 TEST_CASE("tags, favourites and search")
 {
     auto lib = Librarian::open(":memory:");

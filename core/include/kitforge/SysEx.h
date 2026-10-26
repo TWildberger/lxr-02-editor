@@ -95,6 +95,7 @@ enum class Command : uint8_t
     ParamNotify = 0x43,
     EchoSet = 0x44,
     Event = 0x45,
+    FxFreeze = 0x46,
     Ack = 0x7E,
     Nak = 0x7F,
 };
@@ -123,6 +124,8 @@ enum Capability : uint16_t
     CapParams = 1 << 3,
     CapEcho = 1 << 4,
     CapSave = 1 << 5,
+    CapEngineTrailer = 1 << 7,
+    CapFreeze = 1 << 8,
 };
 
 enum class EventType : uint8_t
@@ -217,6 +220,8 @@ Bytes paramSet(int device, const std::vector<ParamPair>& pairs);
 /** Splits any number of pairs into PARAM_SET frames of at most kMaxSetPairs. */
 std::vector<Bytes> paramSetFrames(int device, const std::vector<ParamPair>& pairs);
 Bytes echoSet(int device, bool on);
+/** No success reply. Values: 0 release, 1..8 rate, 0x7F use P1. */
+Bytes fxFreeze(int device, int value);
 
 // device -> host (used by tests and the device simulator)
 Bytes identityReply(const Identity& id);

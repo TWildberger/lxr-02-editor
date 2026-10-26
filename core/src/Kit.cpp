@@ -30,13 +30,15 @@ Kit Kit::fromSnd(const Bytes& data, std::string* warning)
         else
             k.params_[i - kNameBytes] = data[i];
     }
+    if (data.size() > (size_t) kFileSize)
+        k.extension_.assign(data.begin() + kFileSize, data.end());
     if (warning)
     {
         warning->clear();
         if (data.size() < (size_t) kFileSize)
             *warning = "short kit file (" + std::to_string(data.size()) + " bytes), padded with zeros";
-        else if (data.size() > (size_t) kFileSize)
-            *warning = "kit file has " + std::to_string(data.size() - kFileSize) + " trailing bytes, ignored";
+        else if (!k.extension_.empty() && !k.hasEngineExtension())
+            *warning = "kit has an unknown extension; trailing bytes preserved without interpretation";
     }
     return k;
 }
@@ -44,9 +46,66 @@ Kit Kit::fromSnd(const Bytes& data, std::string* warning)
 Bytes Kit::toSnd() const
 {
     Bytes out;
-    out.reserve(kFileSize);
+    out.reserve(kFileSize + extension_.size());
     out.insert(out.end(), rawName_.begin(), rawName_.end());
     out.insert(out.end(), params_.begin(), params_.end());
+    out.insert(out.end(), extension_.begin(), extension_.end());
+    return out;
+}
+
+bool Kit::hasEngineExtension() const
+{
+    static const Bytes tag { 'E', 'n', 'g', 'V', '0', '1' };
+    return extension_ == tag;
+}
+
+bool Kit::setEngineSettings(int voice, int engine, int timbreDecay, std::string* error)
+{
+    if (error)
+        error->clear();
+    if (voice < 1 || voice > 3 || engine < 0 || engine > 1 || timbreDecay < 0 || timbreDecay > 127)
+    {
+        if (error)
+            *error = "invalid feedback-FM voice, engine or timbre decay";
+        return false;
+    }
+    if (!extension_.empty() && !hasEngineExtension())
+    {
+        if (error)
+            *error = "cannot edit engines in an unknown kit extension; raw bytes preserved";
+        return false;
+    }
+    if (!hasEngineExtension())
+    {
+        std::fill(params_.begin() + kEngineFirst, params_.begin() + kTimbreDecayFirst + 3, 0);
+        extension_ = { 'E', 'n', 'g', 'V', '0', '1' };
+    }
+    set(kEngineFirst + voice - 1, engine);
+    set(kTimbreDecayFirst + voice - 1, timbreDecay);
+    return true;
+}
+
+std::optional<Kit> Kit::fromTmpSnd(const Bytes& data, uint8_t& slot, std::string* error)
+{
+    if (error)
+        error->clear();
+    if (data.size() < 1 + (size_t) kNumSoundParams)
+    {
+        if (error)
+            *error = "short tmp.snd: expected a slot and 247 parameter bytes";
+        return std::nullopt;
+    }
+    slot = data.front();
+    Bytes snd(kNameBytes, 0);
+    snd.insert(snd.end(), data.begin() + 1, data.end());
+    return fromSnd(snd, error);
+}
+
+Bytes Kit::toTmpSnd(uint8_t slot) const
+{
+    Bytes out { slot };
+    out.insert(out.end(), params_.begin(), params_.end());
+    out.insert(out.end(), extension_.begin(), extension_.end());
     return out;
 }
 

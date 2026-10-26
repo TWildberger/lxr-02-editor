@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <optional>
 #include <string>
 
 #include "kitforge/Bytes.h"
@@ -9,20 +10,30 @@
 namespace kitforge
 {
 
-/** A drum kit as stored in a .snd file: 8-byte name + one byte per sound parameter 0..246. */
+/** A drum kit: name, 247 sound parameters, and an optional opaque extension suffix. */
 class Kit
 {
 public:
     static constexpr int kNameBytes = 8;
     static constexpr int kFileSize = kNameBytes + kNumSoundParams; // 255
+    static constexpr int kEngineFirst = 221;
+    static constexpr int kTimbreDecayFirst = 224;
+    static constexpr int kEngineFileSize = kFileSize + 6;
 
     Kit(); // "Initkit" defaults from the firmware
 
     static Kit init();
 
-    /** Parse .snd bytes. Short files are zero-padded (as the firmware does); extra bytes are ignored. */
+    /** Short files are zero-padded; all bytes after the sound array are preserved, not parameters. */
     static Kit fromSnd(const Bytes& data, std::string* warning = nullptr);
     Bytes toSnd() const;
+    /** Explicit autosave codec: slot + 247 parameters + suffix, without a kit name. */
+    static std::optional<Kit> fromTmpSnd(const Bytes& data, uint8_t& slot, std::string* error = nullptr);
+    Bytes toTmpSnd(uint8_t slot) const;
+    const Bytes& extension() const { return extension_; }
+    bool hasEngineExtension() const;
+    /** Explicit opt-in. Initializing a legacy kit clears only the six formerly reserved bytes. */
+    bool setEngineSettings(int voice, int engine, int timbreDecay, std::string* error = nullptr);
 
     std::string name() const;
     void setName(const std::string& name);
@@ -38,12 +49,13 @@ public:
         out-of-range bytes (e.g. hidden reverb FX type 5), so this is never applied implicitly. */
     int clampToRanges();
 
-    bool operator==(const Kit& o) const { return rawName_ == o.rawName_ && params_ == o.params_; }
+    bool operator==(const Kit& o) const { return rawName_ == o.rawName_ && params_ == o.params_ && extension_ == o.extension_; }
     bool operator!=(const Kit& o) const { return !(*this == o); }
 
 private:
     std::array<uint8_t, kNameBytes> rawName_ {};
     std::array<uint8_t, kNumSoundParams> params_ {};
+    Bytes extension_;
 };
 
 /** Global settings as stored in glo.cfg: one byte per parameter 272..301. */

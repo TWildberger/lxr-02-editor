@@ -50,6 +50,7 @@ DeviceSession::DeviceSession(ParamSync& sync, Listener& listener)
 DeviceSession::~DeviceSession()
 {
     stopThread(2000);
+    releaseFreeze();
     queue_.cancelAll();
     std::lock_guard<std::mutex> g(portLock_);
     if (input_)
@@ -93,6 +94,7 @@ juce::String DeviceSession::describe() const
 
 void DeviceSession::setRoute(Route r)
 {
+    releaseFreeze();
     route_.store(r);
     queue_.cancelAll();
     encoderReset_.store(true);
@@ -104,6 +106,7 @@ void DeviceSession::setRoute(Route r)
 
 void DeviceSession::setDirectPorts(const juce::String& outputId, const juce::String& inputId)
 {
+    releaseFreeze();
     {
         std::lock_guard<std::mutex> g(portLock_);
         if (outputId != outputId_ || (outputId.isNotEmpty() && output_ == nullptr))
@@ -159,7 +162,11 @@ void DeviceSession::setChannel(int ch)
     encoderReset_.store(true);
 }
 
-void DeviceSession::setDeviceId(int id) { deviceId_.store(juce::jlimit(0, 16, id)); }
+void DeviceSession::setDeviceId(int id)
+{
+    releaseFreeze();
+    deviceId_.store(juce::jlimit(0, 16, id));
+}
 
 void DeviceSession::setAllowExtended(bool b)
 {
@@ -169,6 +176,7 @@ void DeviceSession::setAllowExtended(bool b)
 
 void DeviceSession::detect()
 {
+    releaseFreeze();
     queue_.cancelAll();
     if (route_.load() == Route::DirectPort && !directOutputOpen())
     {
@@ -263,7 +271,21 @@ void DeviceSession::sendKit(int slot, const Kit& kit, int flags, Done done)
 {
     if (!requireExtended(done))
         return;
-    enqueue("kit dump", ext::kitDump(devByte(), slot, flags, kit.toSnd()), RQ::ackFor(ext::Command::KitDump),
+    auto snd = kit.toSnd();
+    if (!kit.extension().empty() && !identity().has(ext::CapEngineTrailer))
+    {
+        snd.resize(Kit::kFileSize);
+        log("Device lacks EngV01 capability: sending legacy kit; engine selection may be lost on device. Editor/library bytes retained.");
+    }
+    const auto frame = ext::kitDump(devByte(), slot, flags, snd);
+    if (frame.size() > (size_t) std::min(identity().maxFrame, ext::kMaxFrameLength))
+    {
+        log("Kit dump failed: extension exceeds the device's maximum frame length");
+        if (done)
+            done(false, "kit extension exceeds the device's maximum frame length");
+        return;
+    }
+    enqueue("kit dump", frame, RQ::ackFor(ext::Command::KitDump),
             [done](Outcome o, const std::vector<ext::Message>& replies) {
                 if (done)
                     done(o == Outcome::Ok, outcomeText(o, replies));
@@ -378,8 +400,39 @@ void DeviceSession::sendRaw(const Bytes& msg)
     rawOut_.push_back(msg);
 }
 
+void DeviceSession::sendFreeze(int value)
+{
+    if (!supportsFreeze())
+    {
+        log("Freeze unavailable: requires firmware advertising identity capability bit 8");
+        return;
+    }
+    if (!((value >= 0 && value <= 8) || value == 0x7F))
+    {
+        log("Freeze failed: rate must be 1..8, P1 (127), or release (0)");
+        return;
+    }
+    std::lock_guard<std::mutex> g(rawLock_);
+    if (!transmit(ext::fxFreeze(devByte(), value)))
+    {
+        log("Freeze failed: MIDI output is unavailable or full");
+        return;
+    }
+    freezeEngaged_.store(value != 0);
+}
+
+void DeviceSession::releaseFreeze()
+{
+    std::lock_guard<std::mutex> g(rawLock_);
+    if (!freezeEngaged_.exchange(false))
+        return;
+    if (!transmit(ext::fxFreeze(devByte(), 0)))
+        log("Freeze release failed: MIDI output is unavailable or full; release on the device");
+}
+
 bool DeviceSession::transmit(const Bytes& msg)
 {
+    std::lock_guard<std::mutex> tx(transmitLock_);
     if (msg.empty())
         return true;
     if (route_.load() == Route::PluginMidi)

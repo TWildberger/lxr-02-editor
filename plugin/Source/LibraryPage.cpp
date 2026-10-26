@@ -222,8 +222,10 @@ void LibraryPage::showDetails()
     if (item->kind == FileKind::Kit)
     {
         const auto kit = Kit::fromSnd(item->data);
-        const auto d = diffKits(proc_.currentKit(), kit);
-        if (d.empty())
+        const auto current = proc_.currentKit();
+        const auto d = diffKits(current, kit);
+        const bool sameExtension = current.extension() == kit.extension();
+        if (d.empty() && sameExtension)
             s << "Identical to the kit in the editor.\n";
         else
         {
@@ -231,6 +233,8 @@ void LibraryPage::showDetails()
             for (const auto& line : describeDiff(d))
                 s << "  " << line << "\n";
         }
+        if (!sameExtension)
+            s << "Kit extension differs (including engine opt-in version).\n";
     }
     else if (item->kind == FileKind::Pattern)
     {
@@ -328,7 +332,8 @@ void LibraryPage::loadSelected()
         case FileKind::Kit:
         {
             Kit k = Kit::fromSnd(item->data);
-            k.setName(item->name);
+            if (k.name() != item->name)
+                k.setName(item->name);
             proc_.loadKit(k, KitForgeProcessor::LoadOrigin::User);
             proc_.addLog("Loaded kit \"" + juce::String(item->name) + "\"");
             break;
@@ -389,6 +394,8 @@ void LibraryPage::diffSelected()
     s << na << " -> " << nb << ": " << (int) d.size() << " difference(s)\n\n";
     for (const auto& line : describeDiff(d))
         s << line << "\n";
+    if (ka.extension() != kb.extension())
+        s << "Kit extension differs (including engine opt-in version).\n";
     details_.setText(s);
 }
 
@@ -574,7 +581,8 @@ void LibraryPage::sendSelected()
             if (item->kind == FileKind::Kit && kitSlot < ext::kNumSlots)
             {
                 Kit k = Kit::fromSnd(item->data);
-                k.setName(item->name);
+                if (k.name() != item->name)
+                    k.setName(item->name);
                 proc_.device().sendKit(kitSlot, k, flags, report(kitSlot));
                 ++kitSlot;
                 ++sent;

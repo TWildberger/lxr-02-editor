@@ -111,7 +111,26 @@ VoicePage::VoicePage(KitForgeProcessor& p, int voice) : proc_(p), voice_(voice)
     if (voice == 0)
         if (auto* fx = proc_.parameterFor(pid::PAR_FX_TYPE))
             fxTypeWatch_ = std::make_unique<juce::ParameterAttachment>(*fx, [this](float) { refreshControls(); });
+    if (voice >= 1 && voice <= 3)
+    {
+        engine_.addItem("Legacy", 1);
+        engine_.addItem("Feedback FM", 2);
+        engine_.onChange = [this] { editEngine(); };
+        timbreDecay_.setRange(0, 127, 1);
+        timbreDecay_.setSliderStyle(juce::Slider::LinearHorizontal);
+        timbreDecay_.setChangeNotificationOnlyOnRelease(true);
+        timbreDecay_.setTextBoxStyle(juce::Slider::TextBoxRight, false, 50, 24);
+        timbreDecay_.onDragStart = [this] { proc_.pushUndo(); };
+        timbreDecay_.onValueChange = [this] { editEngine(); };
+        engine_.setTooltip("Explicit EngV01 opt-in for Drum 1-3. Older firmware plays the legacy engine.");
+        timbreDecay_.setTooltip("Static feedback-FM timbre envelope decay, 0-127; not host automated.");
+        addAndMakeVisible(engineLabel_);
+        addAndMakeVisible(engine_);
+        addAndMakeVisible(timbreLabel_);
+        addAndMakeVisible(timbreDecay_);
+    }
     proc_.kitChanged.addChangeListener(this);
+    refreshControls();
 }
 
 VoicePage::~VoicePage() { proc_.kitChanged.removeChangeListener(this); }
@@ -120,6 +139,17 @@ void VoicePage::changeListenerCallback(juce::ChangeBroadcaster*) { refreshContro
 
 void VoicePage::refreshControls()
 {
+    if (voice_ >= 1 && voice_ <= 3)
+    {
+        const auto k = proc_.currentKit();
+        const bool known = k.extension().empty() || k.hasEngineExtension();
+        engine_.setEnabled(known);
+        timbreDecay_.setEnabled(known);
+        engine_.setSelectedId(k.hasEngineExtension() ? k.get(Kit::kEngineFirst + voice_ - 1) + 1 : 1,
+                              juce::dontSendNotification);
+        timbreDecay_.setValue(k.hasEngineExtension() ? k.get(Kit::kTimbreDecayFirst + voice_ - 1) : 0,
+                              juce::dontSendNotification);
+    }
     for (auto& b : content_.boxes)
         for (auto& c : b->controls())
             c->refresh();
@@ -137,6 +167,16 @@ void VoicePage::resized()
     if (voice_ >= 1)
         copy_.setBounds(top.removeFromRight(130));
     r.removeFromTop(6);
+    if (voice_ >= 1 && voice_ <= 3)
+    {
+        auto engineRow = r.removeFromTop(30);
+        engineLabel_.setBounds(engineRow.removeFromLeft(60));
+        engine_.setBounds(engineRow.removeFromLeft(150));
+        engineRow.removeFromLeft(14);
+        timbreLabel_.setBounds(engineRow.removeFromLeft(100));
+        timbreDecay_.setBounds(engineRow.removeFromLeft(250));
+        r.removeFromTop(6);
+    }
     viewport_.setBounds(r);
     const int w = r.getWidth() - viewport_.getScrollBarThickness();
     content_.setSize(w, content_.layout(w));
@@ -153,6 +193,8 @@ void VoicePage::showCopyMenu()
             return;
         Kit k = proc_.currentKit();
         const int n = copyVoice(k, voice_, to);
+        if (k.hasEngineExtension() && voice_ <= 3 && to <= 3)
+            k.setEngineSettings(to, k.get(Kit::kEngineFirst + voice_ - 1), k.get(Kit::kTimbreDecayFirst + voice_ - 1));
         proc_.setValues(k, "Copied " + juce::String(n) + " parameters from " + ParamTable::voiceName(voice_) + " to "
                                + ParamTable::voiceName(to));
     });
@@ -189,6 +231,20 @@ void VoicePage::resetVoice()
     for (int i : ParamTable::paramsForVoice(voice_))
         if (!proc_.isLocked(i))
             k.set(i, init.get(i));
+    if (k.hasEngineExtension() && voice_ >= 1 && voice_ <= 3)
+        k.setEngineSettings(voice_, 0, 0);
+    proc_.setValues(k, {});
+}
+
+void VoicePage::editEngine()
+{
+    auto k = proc_.currentKit();
+    std::string error;
+    if (!k.setEngineSettings(voice_, engine_.getSelectedId() - 1, (int) timbreDecay_.getValue(), &error))
+    {
+        proc_.addLog("Engine edit failed: " + juce::String(error));
+        return;
+    }
     proc_.setValues(k, {});
 }
 

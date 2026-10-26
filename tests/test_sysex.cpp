@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <random>
+#include <stdexcept>
 
 #include "kitforge/Kit.h"
 #include "kitforge/Pattern.h"
@@ -149,6 +150,44 @@ TEST_CASE("small commands round trip")
     m = mustParse(ext::nak(0, ext::Command::ParamSet, ext::Error::ReadOnly, 250));
     CHECK((m.error == ext::Error::ReadOnly && m.arg == 250 && m.answered == ext::Command::ParamSet));
     CHECK(std::string(ext::errorName(m.error)) == "read-only parameter");
+}
+
+TEST_CASE("extended kit dump keeps n at 247 and packs the entire suffix")
+{
+    Kit k;
+    REQUIRE(k.setEngineSettings(1, 1, 127));
+    const auto frame = ext::kitDump(0, ext::kEditBuffer, 0, k.toSnd());
+    CHECK(frame.size() <= ext::kMaxFrameLength);
+    const auto m = mustParse(frame);
+    CHECK(m.count == 247);
+    CHECK(m.data.size() == 261);
+    CHECK(m.data == k.toSnd());
+    CHECK(Kit::fromSnd(m.data) == k);
+    CHECK(ext::kitDump(0, m.slot, m.flags, m.data) == frame);
+}
+
+TEST_CASE("freeze frames match firmware and identity capability uses the second u7 byte")
+{
+    CHECK(ext::fxFreeze(0x7F, 5) == Bytes { 0xF0, 0x7D, 0x4C, 0x7F, 1, 0x46, 5, 0x3D, 0xF7 });
+    CHECK(ext::fxFreeze(0x7F, 0) == Bytes { 0xF0, 0x7D, 0x4C, 0x7F, 1, 0x46, 0, 0x38, 0xF7 });
+    for (const int value : { 0, 1, 2, 3, 4, 5, 6, 7, 8, 127 })
+    {
+        const auto m = mustParse(ext::fxFreeze(0, value));
+        CHECK(m.command == ext::Command::FxFreeze);
+        CHECK(m.arg == value);
+    }
+    CHECK_THROWS_AS(ext::fxFreeze(0, -1), std::invalid_argument);
+    CHECK_THROWS_AS(ext::fxFreeze(0, 9), std::invalid_argument);
+    CHECK_THROWS_AS(ext::fxFreeze(0, 128), std::invalid_argument);
+    CHECK_FALSE(ext::parse(ext::frame(0, ext::Command::FxFreeze, {})));
+    ext::Identity id;
+    id.capabilities = 0x17F;
+    const auto parsed = mustParse(ext::identityReply(id)).identity;
+    CHECK(parsed.capabilities == 0x17F);
+    CHECK(parsed.has(ext::CapFreeze));
+    CHECK_FALSE(parsed.has(ext::CapEngineTrailer));
+    id.capabilities |= ext::CapEngineTrailer;
+    CHECK(mustParse(ext::identityReply(id)).identity.has(ext::CapEngineTrailer));
 }
 
 TEST_CASE("param set frames split at 64 pairs and stay under the frame limit")
