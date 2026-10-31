@@ -9,6 +9,16 @@ a full SysEx mode with kit dump/load, readback and slot management.
 > KitForge is an independent project and is not affiliated with or endorsed by
 > Erica Synths. "LXR-02" is used only to describe compatibility.
 
+## V-Synth XT companion
+
+This repository also builds a **separate V-Synth XT Companion** as VST3, AU and
+standalone. Its initial native-mode editor/librarian preserves complete patch
+snapshots, offers a small first control set, and uses explicit Fetch/Send with
+temporary-buffer readback. Native zone-aware oscillator, envelope, LFO, COSM and
+effects pages are available; type-dependent effect controls retain generic
+protocol labels. It does not change KitForge or emulate the synth.
+See [setup, scope and hardware-validation status](docs/vsynthxt/README.md).
+
 ## Features
 
 **Editor**
