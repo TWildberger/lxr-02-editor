@@ -30,3 +30,15 @@ target_compile_definitions(kitforge_tests PRIVATE
 include(CTest)
 include(Catch)
 catch_discover_tests(kitforge_tests)
+
+add_executable(vsynthxt_tests test_vsynthxt.cpp)
+target_link_libraries(vsynthxt_tests PRIVATE vsynthxt_core Catch2::Catch2WithMain nlohmann_json::nlohmann_json)
+target_compile_definitions(vsynthxt_tests PRIVATE
+    VSYNTHXT_SCHEMA="${PROJECT_SOURCE_DIR}/docs/vsynthxt/protocol.json"
+    VSYNTHXT_NATIVE_SCHEMA="${PROJECT_SOURCE_DIR}/docs/vsynthxt/native-params.json")
+catch_discover_tests(vsynthxt_tests)
+find_package(Python3 QUIET COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
+    add_test(NAME vsynthxt_generated_params
+        COMMAND ${Python3_EXECUTABLE} "${PROJECT_SOURCE_DIR}/tools/gen_vsynthxt_params.py" --check)
+endif()

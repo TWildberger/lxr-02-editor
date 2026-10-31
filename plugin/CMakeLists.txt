@@ -10,6 +10,7 @@ if(APPLE)
     list(APPEND KITFORGE_FORMATS AU)
 endif()
 
+if(KITFORGE_BUILD_PLUGIN)
 juce_add_plugin(KitForge
     COMPANY_NAME "TWildberger"
     COMPANY_WEBSITE "https://github.com/TWildberger/lxr-02-editor"
@@ -89,4 +90,9 @@ if(KITFORGE_BUILD_TESTS)
         juce::juce_recommended_config_flags
         juce::juce_recommended_warning_flags)
     add_test(NAME plugin_smoke COMMAND KitForgeSmokeTest)
+endif()
+endif()
+
+if(VSYNTHXT_BUILD_PLUGIN)
+    add_subdirectory(vsynthxt)
 endif()

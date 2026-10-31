@@ -1,0 +1,37 @@
+{
+  "source": "https://static.roland.com/assets/media/pdf/V-SynthXT_MI.pdf",
+  "revision": "2005-03-24 v1.00",
+  "address_encoding": "four base-128 digits; offsets, strides and sizes below are decimal linear values",
+  "manufacturer": 65,
+  "model": [0, 83],
+  "rq1": 17,
+  "dt1": 18,
+  "device_id_wire": [16, 31],
+  "temporary_part1": [16, 0, 0, 0],
+  "request_boundaries_page": 4,
+  "checksum_examples_page": 19,
+  "blocks": [
+    {"name": "Common", "offset": 0, "size": 114, "count": 1, "stride": 0, "page": 11},
+    {"name": "MFX", "offset": 256, "size": 132, "count": 1, "stride": 0, "page": 11},
+    {"name": "Chorus", "offset": 512, "size": 51, "count": 1, "stride": 0, "page": 12},
+    {"name": "Reverb", "offset": 768, "size": 98, "count": 1, "stride": 0, "page": 12},
+    {"name": "Controller", "offset": 1024, "size": 13, "count": 1, "stride": 0, "page": 15},
+    {"name": "Controller 2 (XT)", "offset": 1152, "size": 16, "count": 1, "stride": 0, "page": 15},
+    {"name": "Step modulator", "offset": 1280, "size": 98, "count": 1, "stride": 0, "page": 17},
+    {"name": "Oscillator", "offset": 2048, "size": 127, "count": 16, "stride": 128, "page": 13},
+    {"name": "Envelope", "offset": 4096, "size": 169, "count": 16, "stride": 256, "page": 14},
+    {"name": "LFO", "offset": 8192, "size": 40, "count": 16, "stride": 128, "page": 15},
+    {"name": "COSM 1", "offset": 10240, "size": 66, "count": 16, "stride": 128, "page": 15},
+    {"name": "COSM 2", "offset": 12288, "size": 66, "count": 16, "stride": 128, "page": 15},
+    {"name": "Arpeggio", "offset": 14336, "size": 66, "count": 16, "stride": 128, "page": 16}
+  ],
+  "editable_parameters": [
+    {"key": "name", "offset": 0, "encoding": "ASCII", "size": 12, "min": 32, "max": 126, "page": 8, "automated": false},
+    {"key": "xt.common.coarse", "offset": 13, "encoding": "u7_offset64", "size": 1, "min": 16, "max": 112, "page": 8, "automated": true},
+    {"key": "xt.common.fine", "offset": 14, "encoding": "u7_offset64", "size": 1, "min": 14, "max": 114, "page": 8, "automated": true},
+    {"key": "xt.chorus.type", "offset": 512, "encoding": "u7", "size": 1, "min": 0, "max": 8, "page": 11, "automated": true}
+  ],
+  "write_policy": "Explicit whole snapshot send to part-1 temporary blocks only; preserve reserved bytes; verify by readback. User slots and system writes are not exposed.",
+  "other_encodings": "Fields marked # use ordered nibbles (page 7). They are preserved opaquely in this milestone, never decoded using LXR packing.",
+  "mode_policy": "Manual native-mode confirmation required; shared model ID is not proof of XT native mode."
+}

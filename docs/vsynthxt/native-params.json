@@ -1,0 +1,151 @@
+{
+  "source": "https://static.roland.com/assets/media/pdf/V-SynthXT_MI.pdf",
+  "notes": "Offsets/strides are decimal base-128 linear offsets. width>1 means high-nibble-first encoding, NOT base-128. min/max are wire values; bias is subtracted for display. Type-dependent COSM/effect parameters deliberately retain generic names and wire-documented ranges.",
+  "groups": [
+    {
+      "group": "Oscillator", "base": 2048, "zones": 16, "zone_stride": 128, "page": 12,
+      "sections": [
+        {"key": "structure", "label": "Structure / mix", "base": 0, "params": [
+          ["type", "Structure type", 0, 1, 0, 2, 0],
+          ["mod_switch", "MOD enabled", 1, 1, 0, 1, 0],
+          ["mod_type", "MOD type", 2, 1, 0, 4, 0],
+          ["mod_level", "MOD original level", 3, 1, 0, 127, 0],
+          ["mod_attack", "MOD attack", 4, 1, 0, 127, 0],
+          ["mod_release", "MOD release", 5, 1, 0, 127, 0],
+          ["tva_switch", "TVA enabled", 6, 1, 0, 1, 0],
+          ["tva_level", "TVA level", 7, 1, 0, 127, 0],
+          ["tva_keyfollow", "TVA level keyfollow (wire)", 8, 1, 44, 84, 0],
+          ["tva_lfo", "TVA level LFO depth", 9, 1, 1, 127, 64],
+          ["pan", "TVA pan", 10, 1, 0, 127, 64],
+          ["pan_keyfollow", "Pan keyfollow (wire)", 11, 1, 44, 84, 0],
+          ["pan_lfo", "Pan LFO depth", 12, 1, 1, 127, 64],
+          ["mfx_send", "MFX send", 13, 1, 0, 127, 0],
+          ["chorus_send", "Chorus send", 14, 1, 0, 127, 0],
+          ["reverb_send", "Reverb send", 15, 1, 0, 127, 0],
+          ["output", "Output assign (wire)", 16, 1, 0, 2, 0]
+        ]},
+        {"key": "osc", "label": "Oscillator", "base": 17, "count": 2, "stride": 52, "params": [
+          ["switch", "Enabled", 0, 1, 0, 1, 0],
+          ["type", "Type (wire)", 1, 1, 0, 2, 0],
+          ["gain", "Wave gain", 2, 1, 52, 76, 64],
+          ["pitch", "Pitch", 3, 1, 1, 127, 64],
+          ["pitch_keyfollow", "Pitch keyfollow (wire)", 4, 1, 44, 84, 0],
+          ["pitch_lfo", "Pitch LFO depth", 5, 1, 1, 127, 64],
+          ["pitch_env", "Pitch envelope depth", 6, 1, 1, 127, 64],
+          ["coarse", "Coarse tune", 7, 1, 16, 112, 64],
+          ["fine", "Fine tune", 8, 1, 14, 114, 64],
+          ["random_pitch", "Random pitch", 9, 1, 0, 30, 0],
+          ["level", "Level", 10, 1, 0, 127, 0],
+          ["level_keyfollow", "Level keyfollow (wire)", 11, 1, 44, 84, 0],
+          ["level_lfo", "Level LFO depth", 12, 1, 1, 127, 64],
+          ["waveform", "Analog waveform (wire)", 13, 1, 0, 13, 0],
+          ["impact", "Impact", 14, 1, 0, 40, 0],
+          ["pulse_width", "Pulse width", 15, 1, 1, 127, 64],
+          ["pulse_keyfollow", "Pulse keyfollow (wire)", 16, 1, 44, 84, 0],
+          ["pulse_lfo", "Pulse LFO depth", 17, 1, 1, 127, 64],
+          ["pulse_env", "Pulse envelope depth", 18, 1, 1, 127, 64],
+          ["fat", "Fat", 19, 1, 0, 127, 0],
+          ["fat_keyfollow", "Fat keyfollow (wire)", 20, 1, 44, 84, 0],
+          ["fat_lfo", "Fat LFO depth", 21, 1, 1, 127, 64],
+          ["fat_env", "Fat envelope depth", 22, 1, 1, 127, 64],
+          ["wave", "PCM wave number (existing project)", 23, 4, 0, 999, 0],
+          ["time", "Time", 35, 1, 1, 127, 64],
+          ["time_keyfollow", "Time keyfollow (wire)", 36, 1, 44, 84, 0],
+          ["time_lfo", "Time LFO depth", 37, 1, 1, 127, 64],
+          ["time_env", "Time envelope depth", 38, 1, 1, 127, 64],
+          ["time_offset", "Time offset (wire)", 39, 1, 0, 2, 0],
+          ["formant", "Formant", 40, 1, 1, 127, 64],
+          ["formant_keyfollow", "Formant keyfollow (wire)", 41, 1, 44, 84, 0],
+          ["formant_lfo", "Formant LFO depth", 42, 1, 1, 127, 64],
+          ["formant_env", "Formant envelope depth", 43, 1, 1, 127, 64],
+          ["tempo_sync", "Tempo sync", 44, 1, 0, 1, 0],
+          ["robot", "Robot voice", 45, 1, 0, 1, 0],
+          ["playback", "Playback mode (wire)", 46, 1, 0, 3, 0],
+          ["loop", "Loop", 47, 1, 0, 1, 0],
+          ["vari", "VariPhrase", 48, 1, 0, 1, 0],
+          ["energy", "Energy", 49, 1, 0, 127, 0],
+          ["time_trip", "Time Trip", 50, 1, 0, 1, 0],
+          ["beat_keep", "Time Trip beat keep", 51, 1, 0, 1, 0]
+        ]},
+        {"key": "sub", "label": "Detune / sub oscillator", "base": 121, "count": 2, "stride": 3, "page": 13, "params": [
+          ["detune", "Detune", 0, 1, 1, 127, 64],
+          ["octave", "Sub octave (wire)", 1, 1, 0, 3, 0],
+          ["level", "Sub level", 2, 1, 0, 127, 0]
+        ]}
+      ]
+    },
+    {
+      "group": "Envelope", "base": 4096, "zones": 16, "zone_stride": 256, "page": 13,
+      "sections": [
+        {"key": "env", "label": "Envelope", "base": 0, "count": 13, "stride": 13,
+         "instance_labels": ["OSC1 pitch", "OSC1 time / pulse width", "OSC1 formant / fat", "OSC1 level", "OSC2 pitch", "OSC2 time / pulse width", "OSC2 formant / fat", "OSC2 level", "COSM1 parameter 1", "COSM1 parameter 2", "COSM2 parameter 1", "COSM2 parameter 2", "TVA level"],
+         "params": [
+          ["attack", "Attack (0-127; 128-144 sync codes)", 0, 2, 0, 144, 0],
+          ["decay", "Decay (0-127; 128-144 sync codes)", 2, 2, 0, 144, 0],
+          ["sustain", "Sustain", 4, 1, 0, 127, 0],
+          ["release", "Release (0-127; 128-144 sync codes)", 5, 2, 0, 144, 0],
+          ["velocity_curve", "Velocity curve (wire)", 7, 1, 0, 7, 0],
+          ["velocity", "Velocity sensitivity", 8, 1, 1, 127, 64],
+          ["attack_velocity", "Attack velocity sensitivity", 9, 1, 1, 127, 64],
+          ["decay_velocity", "Decay velocity sensitivity", 10, 1, 1, 127, 64],
+          ["release_velocity", "Release velocity sensitivity", 11, 1, 1, 127, 64],
+          ["keyfollow", "Time keyfollow (wire)", 12, 1, 44, 84, 0]
+        ]}
+      ]
+    },
+    {
+      "group": "LFO", "base": 8192, "zones": 16, "zone_stride": 128, "page": 14,
+      "sections": [
+        {"key": "lfo", "label": "LFO", "base": 0, "count": 5, "stride": 8,
+         "instance_labels": ["OSC1", "OSC2", "COSM1", "COSM2", "TVA"],
+         "params": [
+          ["waveform", "Waveform (0 SIN,1 TRI,2 SAW,3 SQR,4 RND,5 TRP,6 S&H,7 CHS)", 0, 1, 0, 7, 0],
+          ["rate", "Rate (0-127; 128-144 sync codes)", 1, 2, 0, 144, 0],
+          ["offset", "Offset (0 -100%,1 -50%,2 0%,3 +50%,4 +100%)", 3, 1, 0, 4, 0],
+          ["delay", "Delay time", 4, 1, 0, 127, 0],
+          ["fade_mode", "Fade mode (0 on-in,1 on-out,2 off-in,3 off-out)", 5, 1, 0, 3, 0],
+          ["fade_time", "Fade time", 6, 1, 0, 127, 0],
+          ["key_sync", "Key sync", 7, 1, 0, 1, 0]
+        ]}
+      ]
+    },
+    {
+      "group": "COSM", "base": 10240, "zones": 16, "zone_stride": 128, "page": 15,
+      "sections": [
+        {"key": "cosm", "label": "COSM", "base": 0, "count": 2, "stride": 2048, "params": [
+          ["switch", "Enabled", 0, 1, 0, 1, 0],
+          ["type", "Type (wire; parameters depend on type)", 1, 1, 0, 16, 0]
+        ]},
+        {"key": "cosm1_param", "label": "COSM 1 parameters (generic)", "base": 2, "count": 16, "stride": 4,
+         "section_single": true, "params": [["value", "Parameter", 0, 4, 12768, 52768, 32768]]},
+        {"key": "cosm2_param", "label": "COSM 2 parameters (generic)", "base": 2050, "count": 16, "stride": 4,
+         "section_single": true, "params": [["value", "Parameter", 0, 4, 12768, 52768, 32768]]}
+      ]
+    },
+    {
+      "group": "Effects", "base": 0, "zones": 1, "zone_stride": 0, "page": 11,
+      "sections": [
+        {"key": "mfx", "label": "MFX", "base": 256, "params": [
+          ["type", "Type (wire; parameters depend on type)", 0, 1, 0, 41, 0],
+          ["level", "Master level", 1, 1, 0, 127, 0],
+          ["chorus_send", "Chorus send", 2, 1, 0, 127, 0],
+          ["reverb_send", "Reverb send", 3, 1, 0, 127, 0]
+        ]},
+        {"key": "mfx_param", "label": "MFX parameters (generic)", "base": 260, "count": 32, "stride": 4,
+         "section_single": true, "params": [["value", "Parameter", 0, 4, 12768, 52768, 32768]]},
+        {"key": "chorus", "label": "Chorus", "base": 512, "params": [
+          ["level", "Master level", 1, 1, 0, 127, 0],
+          ["reverb_send", "Reverb send", 2, 1, 0, 127, 0]
+        ]},
+        {"key": "chorus_param", "label": "Chorus parameters (generic)", "base": 515, "count": 12, "stride": 4,
+         "section_single": true, "params": [["value", "Parameter", 0, 4, 12768, 52768, 32768]]},
+        {"key": "reverb", "label": "Reverb", "base": 768, "page": 12, "params": [
+          ["type", "Type (wire; parameters depend on type)", 0, 1, 0, 10, 0],
+          ["level", "Master level", 1, 1, 0, 127, 0]
+        ]},
+        {"key": "reverb_param", "label": "Reverb parameters (generic)", "base": 770, "count": 24, "stride": 4, "page": 12,
+         "section_single": true, "params": [["value", "Parameter", 0, 4, 12768, 52768, 32768]]}
+      ]
+    }
+  ]
+}
