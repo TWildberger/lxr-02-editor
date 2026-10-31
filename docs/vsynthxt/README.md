@@ -34,7 +34,7 @@ Available workflows:
 
 There are no user-slot writes, system writes, program changes or automatic
 connect/recall sends. Continuous knob-to-hardware automation, other parts,
-user-slot browsing, algorithm-specific effect/COSM parameter labeling, VC-1/VC-2, sample/project
+user-slot browsing, algorithm-specific numbered effect/COSM slot bindings, VC-1/VC-2, sample/project
 management and audio streaming are not implemented in this milestone.
 
 ## Native parameter pages
@@ -58,7 +58,27 @@ python3 tools/gen_vsynthxt_params.py --check
 
 This is a protocol-level native editor, not a finished recreation of the XT's
 screen. Fields labeled **wire** expose numeric protocol codes; envelope/LFO sync
-values 128-144 remain numeric codes. COSM/effect numbered parameters use the
+values 128-144 remain numeric codes. The Native page provides named algorithm
+selectors for both COSMs in every zone (codes 0-16), MFX (1-41), chorus (1-8)
+and reverb (1-10). Code 0 for effects remains explicitly unnamed: the numbered
+owner-manual lists do not establish an algorithm name for it. Unknown raw codes
+are displayed explicitly and disabled, never silently replaced.
+
+A read-only algorithm reference and link to the official owner's manual show
+selected semantic names, units and ranges; this is not an editable slot mapping.
+References use printed pages 153, 159-163 (COSM), 164-185 (MFX), 186 (chorus)
+and 186-191 (reverb) of
+[Roland's V-Synth XT Owner's Manual](https://static.roland.com/assets/media/pdf/V-SYNTH_XT_OM.pdf).
+For example, TVF cutoff/resonance are 0-127, chorus rate is 0.05-10 Hz or notes,
+and reverb Delay time is 0-1300 ms in MONO or 0-650 ms in STEREO/ALTERNATE,
+or notes. The source link covers the complete table where only a subset is
+summarized. The PDF page index is one greater than the printed page.
+
+**Unresolved mapping:** matrix-control destination markers (`#1`/`#2`, or
+MFX1-MFX3) and screen-table ordering do not establish numbered SysEx slot
+indices or their physical-value conversion/lookup tables. Those numbered
+controls therefore retain generic labels, with no guessed units or narrowed
+ranges. COSM/effect numbered parameters use the MIDI implementation's
 manual's generic -20000..20000 representation, not algorithm-specific names,
 units or ranges. Their meaning depends on the selected type. Changing type does
 not initialize its other parameter bytes. Consult the XT manual before sending

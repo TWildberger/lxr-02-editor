@@ -66,9 +66,9 @@ Editor::Editor(Processor& p) : AudioProcessorEditor(p), proc_(p), nativePage_(p)
     for (auto* c : std::initializer_list<juce::Component*> {
         &name_, &rename_, &undo_, &redo_, &ab_, &copy_, &import_, &export_}) add(patch_, *c);
     name_.setInputRestrictions(12); name_.setTextToShowWhenEmpty("Patch name (12 ASCII characters)", juce::Colours::grey);
-    const std::array<const char*, 3> ids {"xt.common.coarse", "xt.common.fine", "xt.chorus.type"};
-    const std::array<const char*, 3> names {"Coarse tune (semitones)", "Fine tune (cents)", "Chorus type (0-8)"};
-    for (size_t i = 0; i < 3; ++i)
+    const std::array<const char*, 2> ids {"xt.common.coarse", "xt.common.fine"};
+    const std::array<const char*, 2> names {"Coarse tune (semitones)", "Fine tune (cents)"};
+    for (size_t i = 0; i < sliders_.size(); ++i)
     {
         add(patch_, sliders_[i]); add(patch_, labels_[i]);
         labels_[i].setText(names[i], juce::dontSendNotification);
@@ -76,6 +76,13 @@ Editor::Editor(Processor& p) : AudioProcessorEditor(p), proc_(p), nativePage_(p)
         sliders_[i].setTextBoxStyle(juce::Slider::TextBoxRight, false, 70, 24);
         attachments_[i] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(p.state, ids[i], sliders_[i]);
     }
+    add(patch_, chorusType_); add(patch_, labels_[2]);
+    labels_[2].setText("Chorus type (local)", juce::dontSendNotification);
+    const auto& types = algorithms("Chorus");
+    for (size_t i = 0; i < types.size(); ++i)
+        chorusType_.addItem(juce::String(static_cast<int>(i)) + ": " + types[i].name, static_cast<int>(i + 1));
+    chorusType_.setTooltip("Local edit only; all other bytes retained. Explicit Send is required to change hardware.");
+    chorusAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(p.state, "xt.chorus.type", chorusType_);
     rename_.onClick = [this] { act([this] { proc_.rename(name_.getText()); }); };
     undo_.onClick = [this] { act([this] { proc_.undo(); }); };
     redo_.onClick = [this] { act([this] { proc_.redo(); }); };
@@ -155,6 +162,11 @@ void Editor::refresh()
     const auto p = proc_.patch();
     name_.setText(p.name(), false);
     for (auto& s : sliders_) s.setEnabled(p.complete());
+    const auto* chorus = selectedAlgorithm(p, parameter("xt.chorus.type"));
+    chorusType_.setEnabled(chorus != nullptr);
+    const int code = p.complete() ? p.value(512) : -1;
+    chorusType_.setTextWhenNothingSelected(p.complete() ? "Unknown wire code " + juce::String(code) : "Fetch/import a complete patch first");
+    chorusType_.setSelectedId(chorus ? code + 1 : 0, juce::dontSendNotification);
     rename_.setEnabled(p.complete()); export_.setEnabled(p.complete()); save_.setEnabled(p.complete());
     ab_.setButtonText(proc_.isB() ? "Compare A/B (B)" : "Compare A/B (A)");
     problem_.setText(proc_.problem(), juce::dontSendNotification);
@@ -191,7 +203,9 @@ void Editor::resized()
     for (size_t i = 0; i < 3; ++i)
     {
         p.removeFromTop(12); row = p.removeFromTop(38);
-        labels_[i].setBounds(row.removeFromLeft(210)); sliders_[i].setBounds(row);
+        labels_[i].setBounds(row.removeFromLeft(210));
+        if (i < sliders_.size()) sliders_[i].setBounds(row);
+        else chorusType_.setBounds(row);
     }
     p.removeFromTop(16); row = p.removeFromTop(36);
     for (auto* b : {&undo_, &redo_, &ab_, &copy_}) b->setBounds(row.removeFromLeft(170).reduced(3));

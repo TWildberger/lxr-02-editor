@@ -21,6 +21,56 @@ void silence(xt::Processor& p)
     p.processBlock(audio, midi);
     check(midi.isEmpty(), "Unexpected MIDI emitted without an explicit action");
 }
+juce::ComboBox* algorithmMenu(juce::Component& parent, int count)
+{
+    for (auto* child : parent.getChildren())
+    {
+        if (auto* menu = dynamic_cast<juce::ComboBox*>(child))
+            if (menu->getNumItems() == count) return menu;
+        if (auto* menu = algorithmMenu(*child, count)) return menu;
+    }
+    return nullptr;
+}
+void verifyTypeMenu(xt::Processor& p, xt::NativePage& page, const char* key, int count)
+{
+    juce::ComboBox* menu = nullptr;
+    for (auto* child : page.getChildren())
+        if (auto* viewport = dynamic_cast<juce::Viewport*>(child)) menu = algorithmMenu(*viewport, count);
+    check(menu != nullptr, "Named algorithm selector is missing");
+    const auto before = p.patch();
+    const auto& info = xt::parameter(key);
+    menu->setSelectedId(count, juce::sendNotificationSync);
+    auto expected = before;
+    xt::setParameter(expected, info, count - 1);
+    const auto deadline = juce::Time::getMillisecondCounterHiRes() + 1000;
+    while (!(p.patch() == expected) && juce::Time::getMillisecondCounterHiRes() < deadline)
+    {
+        juce::Timer::callPendingTimersSynchronously();
+        juce::Thread::sleep(20);
+    }
+    silence(p);
+    check(p.patch() == expected, "Algorithm selector modified bytes beyond its type");
+    page.refresh();
+    check(menu->getSelectedId() == count, "Algorithm selector did not refresh");
+    juce::MemoryBlock state;
+    p.getStateInformation(state);
+    xt::Processor restored;
+    restored.setStateInformation(state.getData(), static_cast<int>(state.getSize()));
+    check(restored.patch() == expected, "Algorithm type/raw bytes did not survive DAW state");
+    silence(restored);
+    auto unknown = expected;
+    auto block = unknown.data.upper_bound(info.offset);
+    --block;
+    block->second.at(info.offset - block->first) = 127;
+    p.load(unknown);
+    page.refresh();
+    check(!menu->isEnabled() && menu->getSelectedId() == 0
+        && menu->getTextWhenNothingSelected().contains("127"), "Unknown algorithm code was silently replaced");
+    check(p.patch() == unknown, "Unknown algorithm raw bytes were modified by presentation");
+    p.load(before);
+    silence(p);
+    page.refresh();
+}
 xt::Patch transfer(xt::Session& session, const xt::Patch& source, bool send, bool consumeResult = true)
 {
     session.start(send, source, true);
@@ -227,6 +277,36 @@ int main(int argc, char** argv)
                     }
                 native->select(3, 16, 5);
                 check(native->rowCount() == 7, "LFO 5 controls missing");
+                native->select(4, 16, 1);
+                verifyTypeMenu(restored, *native, "xt.native.cosm.zone16.cosm1.type", 17);
+                native->select(5, 1, 1);
+                const int effectsSections = native->sectionCount();
+                int verifiedEffects = 0;
+                for (int section = 1; section <= effectsSections; ++section)
+                {
+                    native->select(5, 1, section);
+                    for (auto* child : native->getChildren())
+                        if (auto* viewport = dynamic_cast<juce::Viewport*>(child))
+                        {
+                            if (algorithmMenu(*viewport, 42))
+                            {
+                                verifyTypeMenu(restored, *native, "xt.native.effects.mfx.type", 42);
+                                ++verifiedEffects;
+                            }
+                            if (algorithmMenu(*viewport, 9))
+                            {
+                                verifyTypeMenu(restored, *native, "xt.chorus.type", 9);
+                                ++verifiedEffects;
+                            }
+                            if (algorithmMenu(*viewport, 11))
+                            {
+                                verifyTypeMenu(restored, *native, "xt.native.effects.reverb.type", 11);
+                                ++verifiedEffects;
+                            }
+                        }
+                }
+                check(verifiedEffects == 3, "Not all effect type selectors were exercised");
+                native->select(3, 16, 5);
             }
             for (auto* child : panel->getChildren())
                 check(!child->getBounds().isEmpty() && panel->getLocalBounds().contains(child->getBounds()),
