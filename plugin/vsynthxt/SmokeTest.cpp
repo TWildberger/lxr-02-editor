@@ -351,6 +351,32 @@ int main(int argc, char** argv)
         automated.setStateInformation(nativeState.getData(), static_cast<int>(nativeState.getSize()));
         check(xt::parameterValue(automated.patch(), env) == 144, "Native nibble automation lost on recall");
         silence(automated);
+        const auto retained = automated.patch();
+        const auto retainedB = automated.isB();
+        automated.session.configure(true, {}, {}, 17);
+        const auto rejectState = [&](const juce::MemoryBlock& invalid) {
+            automated.session.start(true, retained, true);
+            check(automated.session.busy(), "Malformed-state cancellation test did not start its fake host transfer");
+            automated.setStateInformation(invalid.getData(), static_cast<int>(invalid.getSize()));
+            check(!automated.session.busy() && !automated.session.takeResult(),
+                  "Malformed state retained a queued transfer or stale result");
+            check(automated.problem().startsWith("State restore failed:"), "Malformed state did not report an error");
+            check(automated.patch() == retained && automated.isB() == retainedB,
+                  "Malformed state partially replaced valid local patch/A-B state");
+            silence(automated);
+        };
+        rejectState(juce::MemoryBlock("invalid", 7));
+        for (const char* corruption : {"version", "patch", "other"})
+        {
+            auto xml = juce::AudioProcessor::getXmlFromBinary(nativeState.getData(), static_cast<int>(nativeState.getSize()));
+            check(xml != nullptr, "Could not inspect valid state fixture");
+            auto invalid = juce::ValueTree::fromXml(*xml);
+            if (juce::String(corruption) == "version") invalid.setProperty("version", 999, nullptr);
+            else invalid.setProperty(corruption, "not-a-patch", nullptr);
+            juce::MemoryBlock invalidBytes;
+            juce::AudioProcessor::copyXmlToBinary(*invalid.createXml(), invalidBytes);
+            rejectState(invalidBytes);
+        }
         restored.session.start(true, source, true);
         juce::Thread::sleep(20);
         restored.session.cancel();

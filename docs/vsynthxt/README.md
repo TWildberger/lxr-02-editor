@@ -152,7 +152,7 @@ Use the repository's normal CMake build. JUCE is fetched once for both products.
 
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --target VSynthXT_VST3 VSynthXT_AU VSynthXT_Standalone vsynthxt_tests VSynthXTSmokeTest -j6
+cmake --build build --target VSynthXT_VST3 VSynthXT_AU VSynthXT_Standalone vsynthxt_tests VSynthXTSmokeTest VSynthXTVST3Test -j6
 ctest --test-dir build -R 'XT|vsynthxt' --output-on-failure
 ```
 
@@ -171,7 +171,25 @@ The tests cover independent Roland message vectors, block-schema consistency,
 address carries, corruption, fragments/realtime bytes, raw snapshot/library
 round trips, DAW recall, initial editor rendering, cancellation, stopped-host
 expiry and a fake XT's full fetch/send/readback. These are **not hardware tests**.
-The smoke test uses a build-directory database rather than your personal library.
+`vsynthxt_smoke` instantiates the shared processor/editor directly, not the
+VST3 bundle. It also checks malformed XML, unsupported versions and corrupt
+patch/A-B encodings: errors retain the prior local state and cancel queued
+fake host transfers without MIDI output.
+
+`vsynthxt_vst3_host` **loads the actual built VST3 bundle** using a small JUCE
+test host compiled from existing dependencies. It checks the 4,975 XT parameter
+names/order (separately from wrapper bypass/MIDI-controller proxies), complete
+fixture loading, type-independent coarse automation's exact patch-byte change,
+state/raw-byte recall into a second instance, 48/44.1 kHz processing at small
+block sizes, silent audio/MIDI on construction and recall, and editor
+creation/rendering. Its synthetic state does not contain MIDI routing, and it
+does not open an audio device, send notes, configure real MIDI ports, or install
+the bundle. Run it with `ctest --test-dir build -R '^vsynthxt_vst3_host$' -V`.
+This focused host check is **not** a comprehensive SDK/pluginval conformance
+suite, a standalone live UI Fetch test, AU validation, or Logic/Ableton testing.
+
+The smoke and VST3 host tests use build-directory databases rather than your
+personal library.
 For explicitly authorized hardware diagnostics, the same executable supports
 `--list-midi` (enumeration only) and
 `--fetch-native inputID outputID deviceID newBackup.syx` (RQ1 reads only).
