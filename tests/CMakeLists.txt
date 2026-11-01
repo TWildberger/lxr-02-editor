@@ -4,12 +4,16 @@ FetchContent_Declare(Catch2
     GIT_SHALLOW TRUE)
 FetchContent_MakeAvailable(Catch2)
 
-# header-only JSON reader, used only to cross-check against the vendored firmware table
+# Header-only JSON reader for each product's own schema cross-checks.
 FetchContent_Declare(nlohmann_json
     URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
     URL_HASH SHA256=d6c65aca6b1ed68e7a182f4757257b107ae403032760ed6ef121c9d55e81757d)
 FetchContent_MakeAvailable(nlohmann_json)
 
+include(CTest)
+include(Catch)
+
+if(KITFORGE_BUILD_TESTS)
 add_executable(kitforge_tests
     test_param_table.cpp
     test_kit_files.cpp
@@ -27,10 +31,10 @@ target_compile_definitions(kitforge_tests PRIVATE
     KITFORGE_PARAMS_JSON="${PROJECT_SOURCE_DIR}/docs/editor-params.json"
     KITFORGE_VENDORED_PARAMS_JSON="${PROJECT_SOURCE_DIR}/docs/firmware/params.json")
 
-include(CTest)
-include(Catch)
 catch_discover_tests(kitforge_tests)
+endif()
 
+if(VSYNTHXT_BUILD_TESTS)
 add_executable(vsynthxt_tests test_vsynthxt.cpp)
 target_link_libraries(vsynthxt_tests PRIVATE vsynthxt_core Catch2::Catch2WithMain nlohmann_json::nlohmann_json)
 target_compile_definitions(vsynthxt_tests PRIVATE
@@ -41,4 +45,5 @@ find_package(Python3 QUIET COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
     add_test(NAME vsynthxt_generated_params
         COMMAND ${Python3_EXECUTABLE} "${PROJECT_SOURCE_DIR}/tools/gen_vsynthxt_params.py" --check)
+endif()
 endif()

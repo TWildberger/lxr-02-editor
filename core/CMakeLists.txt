@@ -13,27 +13,7 @@ add_library(kitforge_core STATIC
 )
 add_library(kitforge::core ALIAS kitforge_core)
 
-target_include_directories(kitforge_core PUBLIC include)
-
-add_library(companion_sqlite INTERFACE)
-find_package(SQLite3 QUIET)
-if(SQLite3_FOUND)
-    if(TARGET SQLite3::SQLite3)
-        target_link_libraries(companion_sqlite INTERFACE SQLite3::SQLite3)
-    else()
-        target_link_libraries(companion_sqlite INTERFACE SQLite::SQLite3)
-    endif()
-else()
-    message(STATUS "System SQLite3 not found, fetching the amalgamation")
-    FetchContent_Declare(sqlite_amalgamation
-        URL https://www.sqlite.org/2024/sqlite-amalgamation-3460100.zip
-        URL_HASH SHA3_256=af6aae8d3eccc608857c63cf56efbadc70da48b5c719446b353ed88dded1e288)
-    FetchContent_MakeAvailable(sqlite_amalgamation)
-    add_library(kitforge_sqlite STATIC ${sqlite_amalgamation_SOURCE_DIR}/sqlite3.c)
-    target_include_directories(kitforge_sqlite PUBLIC ${sqlite_amalgamation_SOURCE_DIR})
-    target_compile_definitions(kitforge_sqlite PRIVATE SQLITE_OMIT_LOAD_EXTENSION SQLITE_THREADSAFE=1)
-    target_link_libraries(companion_sqlite INTERFACE kitforge_sqlite)
-endif()
+target_include_directories(kitforge_core PUBLIC include "${PROJECT_SOURCE_DIR}/shared/include")
 target_link_libraries(kitforge_core PRIVATE companion_sqlite)
 
 if(MSVC)

@@ -1,7 +1,8 @@
 # V-Synth XT Companion
 
-An independent hardware editor and patch librarian, built alongside KitForge as
+An independent hardware editor and patch librarian, available as
 **V-Synth XT Companion** (VST3, AU and standalone). It does not emulate the XT.
+It needs V-Synth XT hardware, **not an LXR-02 or KitForge installation**.
 Roland and V-Synth are trademarks of their respective owner; this project is not
 affiliated with or endorsed by Roland.
 
@@ -148,24 +149,50 @@ favorite status, then archive the current patch again.
 
 ## Build and checks
 
-Use the repository's normal CMake build. JUCE is fetched once for both products.
+### XT-only build and distribution
+
+From this repository root, use the dedicated preset:
 
 ```sh
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --target VSynthXT_VST3 VSynthXT_AU VSynthXT_Standalone vsynthxt_tests VSynthXTSmokeTest VSynthXTVST3Test -j6
-ctest --test-dir build -R 'XT|vsynthxt' --output-on-failure
+cmake --preset vsynthxt
+cmake --build --preset vsynthxt -j6
+ctest --preset vsynthxt
+cpack --config build-xt/CPackConfig.cmake -B build-xt/packages
 ```
 
 Artifacts are in
-`build/plugin/vsynthxt/VSynthXT_artefacts/Release/{VST3,AU,Standalone}`.
+`build-xt/plugin/vsynthxt/VSynthXT_artefacts/Release/{VST3,AU,Standalone}`.
+The XT archive in `build-xt/packages` contains only those XT bundles, the XT
+readme and license, separated into format folders. No KitForge bundle, LXR
+schema/asset, test executable, library database or captured patch is shipped.
+Extract/run the standalone without installing KitForge; plug-in installation,
+if desired, is a separate user action for the format/host you choose.
+
+For explicit local staging (not system/user plug-in installation):
+`cmake --install build-xt --component VSynthXT --prefix "$PWD/build-xt/stage"`.
+In a combined build, the `VSynthXT` and `KitForge` components remain independently
+selectable, and CPack produces separate product archives. The `kitforge` preset
+provides the equivalent LXR-only build in `build-lxr`.
+
 macOS bundles receive an ad-hoc development signature after their resources have
 been generated; they are not notarized distribution packages. Building does not
 install plug-ins or launch the standalone app.
 
-`VSYNTHXT_BUILD_PLUGIN` enables this product independently.
-Its default follows `KITFORGE_BUILD_PLUGIN`, preserving the existing core-only
-build command. To build only the XT plug-in, configure with
-`-DKITFORGE_BUILD_PLUGIN=OFF -DVSYNTHXT_BUILD_PLUGIN=ON`.
+The preset sets all `KITFORGE_BUILD_{CORE,PLUGIN,TESTS}` options OFF and
+`VSYNTHXT_BUILD_{CORE,PLUGIN,TESTS}` ON. These switches can also be passed
+individually to CMake. `VSYNTHXT_BUILD_TESTS=OFF` omits test dependencies and
+executables for a release-only build. Core targets can be built without JUCE by
+disabling each product's plug-in switch. The default unqualified build preserves
+both products and existing KitForge behavior.
+
+**Remaining shared build-time sources:** the repository's CMake entry point and
+packaging helper, a device-neutral header-only MIDI SysEx assembler, JUCE,
+SQLite (system library or amalgamation), and Catch2/nlohmann JSON/Python for
+tests/schema checks. XT does not compile/link `kitforge_core`, include LXR
+headers, or require its firmware tables, fixtures or runtime assets. SQLite
+linkage is generic, but XT and KitForge still use separate database paths and
+unchanged product IDs/settings/state/automation. This is independent
+build/distribution from one repository, not a newly created repository.
 
 The tests cover independent Roland message vectors, block-schema consistency,
 address carries, corruption, fragments/realtime bytes, raw snapshot/library
@@ -184,7 +211,7 @@ state/raw-byte recall into a second instance, 48/44.1 kHz processing at small
 block sizes, silent audio/MIDI on construction and recall, and editor
 creation/rendering. Its synthetic state does not contain MIDI routing, and it
 does not open an audio device, send notes, configure real MIDI ports, or install
-the bundle. Run it with `ctest --test-dir build -R '^vsynthxt_vst3_host$' -V`.
+the bundle. Run it with `ctest --test-dir build-xt -R '^vsynthxt_vst3_host$' -V`.
 This focused host check is **not** a comprehensive SDK/pluginval conformance
 suite, a standalone live UI Fetch test, AU validation, or Logic/Ableton testing.
 

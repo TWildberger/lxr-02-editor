@@ -5,11 +5,6 @@ FetchContent_Declare(JUCE
     URL_HASH SHA256=0eafd736286c6e7bb6958d79fce18d42cb654b8e231890d327b7cece379bd156)
 FetchContent_MakeAvailable(JUCE)
 
-set(KITFORGE_FORMATS VST3 Standalone)
-if(APPLE)
-    list(APPEND KITFORGE_FORMATS AU)
-endif()
-
 if(KITFORGE_BUILD_PLUGIN)
 juce_add_plugin(KitForge
     COMPANY_NAME "TWildberger"
@@ -19,7 +14,7 @@ juce_add_plugin(KitForge
     PLUGIN_CODE Kfg2
     PRODUCT_NAME "KitForge"
     DESCRIPTION "Editor and librarian for LXR-02"
-    FORMATS ${KITFORGE_FORMATS}
+    FORMATS ${COMPANION_FORMATS}
     IS_SYNTH TRUE
     NEEDS_MIDI_INPUT TRUE
     NEEDS_MIDI_OUTPUT TRUE

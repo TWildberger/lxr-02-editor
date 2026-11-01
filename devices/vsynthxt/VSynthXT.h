@@ -1,6 +1,9 @@
 #pragma once
 
-#include "kitforge/Bytes.h"
+#include <cstdint>
+#include <optional>
+#include <string>
+#include <vector>
 #include <array>
 #include <map>
 #include <memory>
@@ -8,7 +11,7 @@
 
 namespace vsynthxt
 {
-using kitforge::Bytes;
+using Bytes = std::vector<uint8_t>;
 using Address = uint32_t; // Four base-128 digits, represented as a linear offset.
 constexpr Address temporary = 0x10u << 21;
 

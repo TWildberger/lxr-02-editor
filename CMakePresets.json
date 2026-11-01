@@ -1,0 +1,44 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {"major": 3, "minor": 22, "patch": 0},
+  "configurePresets": [
+    {
+      "name": "vsynthxt",
+      "displayName": "V-Synth XT only",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build-xt",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "KITFORGE_BUILD_CORE": "OFF",
+        "KITFORGE_BUILD_PLUGIN": "OFF",
+        "KITFORGE_BUILD_TESTS": "OFF",
+        "VSYNTHXT_BUILD_CORE": "ON",
+        "VSYNTHXT_BUILD_PLUGIN": "ON",
+        "VSYNTHXT_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "kitforge",
+      "displayName": "KitForge / LXR-02 only",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build-lxr",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "KITFORGE_BUILD_CORE": "ON",
+        "KITFORGE_BUILD_PLUGIN": "ON",
+        "KITFORGE_BUILD_TESTS": "ON",
+        "VSYNTHXT_BUILD_CORE": "OFF",
+        "VSYNTHXT_BUILD_PLUGIN": "OFF",
+        "VSYNTHXT_BUILD_TESTS": "OFF"
+      }
+    }
+  ],
+  "buildPresets": [
+    {"name": "vsynthxt", "configurePreset": "vsynthxt"},
+    {"name": "kitforge", "configurePreset": "kitforge"}
+  ],
+  "testPresets": [
+    {"name": "vsynthxt", "configurePreset": "vsynthxt", "output": {"outputOnFailure": true}},
+    {"name": "kitforge", "configurePreset": "kitforge", "output": {"outputOnFailure": true}}
+  ]
+}

@@ -5,7 +5,7 @@ juce_add_plugin(VSynthXT
     PLUGIN_CODE Vsxt
     PRODUCT_NAME "V-Synth XT Companion"
     DESCRIPTION "Independent hardware editor and librarian for Roland V-Synth XT"
-    FORMATS ${KITFORGE_FORMATS}
+    FORMATS ${COMPANION_FORMATS}
     IS_SYNTH TRUE
     NEEDS_MIDI_INPUT TRUE
     NEEDS_MIDI_OUTPUT TRUE
@@ -31,7 +31,7 @@ if(APPLE)
     endforeach()
 endif()
 
-if(KITFORGE_BUILD_TESTS)
+if(VSYNTHXT_BUILD_TESTS)
     juce_add_console_app(VSynthXTSmokeTest PRODUCT_NAME "VSynthXTSmokeTest")
     target_sources(VSynthXTSmokeTest PRIVATE SmokeTest.cpp ${XT_SOURCES})
     target_compile_definitions(VSynthXTSmokeTest PRIVATE

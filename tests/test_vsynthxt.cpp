@@ -1,7 +1,7 @@
 #include "VSynthXT.h"
 #include "Parameters.h"
 #include "Algorithms.h"
-#include "kitforge/SysEx.h"
+#include "companion/SysExAssembler.h"
 #include <catch2/catch_test_macros.hpp>
 #include <nlohmann/json.hpp>
 #include <fstream>
@@ -102,7 +102,7 @@ TEST_CASE("XT receive assembly rejects corruption and handles reordered fragment
     REQUIRE_THROWS(receiver.accept({0x10, xt::temporary + 113, {1,2}}, 0x10));
     auto f = xt::dataSet(0x10, xt::temporary, {1,2});
     f.insert(f.begin() + 8, 0xf8);
-    kitforge::sysex::Assembler stream(268);
+    companion::SysExAssembler stream(268);
     REQUIRE(stream.feed(f.data(), 7).empty());
     auto messages = stream.feed(f.data() + 7, f.size() - 7);
     REQUIRE(messages.size() == 1);

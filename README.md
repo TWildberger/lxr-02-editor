@@ -17,6 +17,13 @@ snapshots, offers a small first control set, and uses explicit Fetch/Send with
 temporary-buffer readback. Native zone-aware oscillator, envelope, LFO, COSM and
 effects pages are available; type-dependent effect controls retain generic
 protocol labels. It does not change KitForge or emulate the synth.
+XT users do not need LXR-02 hardware or KitForge. Build **only XT** with
+`cmake --preset vsynthxt`, `cmake --build --preset vsynthxt -j6`, then
+`ctest --preset vsynthxt`. This excludes all LXR source, firmware tables, assets
+and tests. Package it with
+`cpack --config build-xt/CPackConfig.cmake -B build-xt/packages`.
+The `kitforge` preset similarly builds/packages only the LXR product;
+the normal unqualified build still supports both independent products.
 See [setup, scope and hardware-validation status](docs/vsynthxt/README.md).
 
 ## Features
