@@ -1,6 +1,7 @@
 #include "VSynthXT.h"
 #include "Parameters.h"
-#include "kitforge/SysEx.h"
+#include "Algorithms.h"
+#include "companion/SysExAssembler.h"
 #include <catch2/catch_test_macros.hpp>
 #include <nlohmann/json.hpp>
 #include <fstream>
@@ -101,7 +102,7 @@ TEST_CASE("XT receive assembly rejects corruption and handles reordered fragment
     REQUIRE_THROWS(receiver.accept({0x10, xt::temporary + 113, {1,2}}, 0x10));
     auto f = xt::dataSet(0x10, xt::temporary, {1,2});
     f.insert(f.begin() + 8, 0xf8);
-    kitforge::sysex::Assembler stream(268);
+    companion::SysExAssembler stream(268);
     REQUIRE(stream.feed(f.data(), 7).empty());
     auto messages = stream.feed(f.data() + 7, f.size() - 7);
     REQUIRE(messages.size() == 1);
@@ -204,4 +205,47 @@ TEST_CASE("XT native schema templates match every generated zone and section", "
                         ++count;
                     }
     REQUIRE(count == xt::parameters().size());
+}
+
+TEST_CASE("XT algorithm presentation follows type codes without changing wire bindings", "[vsynthxt]")
+{
+    REQUIRE(xt::algorithms("COSM").size() == 17);
+    REQUIRE(xt::algorithms("MFX").size() == 42);
+    REQUIRE(xt::algorithms("Chorus").size() == 9);
+    REQUIRE(xt::algorithms("Reverb").size() == 11);
+    REQUIRE(xt::algorithms("unknown").empty());
+    auto p = fixture();
+    const auto original = p;
+    const auto& slot = xt::parameter("xt.native.cosm.zone16.cosm2_param16.value");
+    REQUIRE(xt::algorithmTypeOffset(slot) == 0x6f * 128 + 1);
+    const auto& type = xt::parameter("xt.native.cosm.zone16.cosm2.type");
+    xt::setParameter(p, type, 10);
+    auto expected = original;
+    expected.data.at(0x6f * 128)[1] = 10;
+    REQUIRE(p == expected);
+    const auto* algorithm = xt::selectedAlgorithm(p, slot);
+    REQUIRE(algorithm != nullptr);
+    REQUIRE(std::string(algorithm->name) == "TVF");
+    REQUIRE(algorithm->page == 162);
+    REQUIRE(std::string(algorithm->reference).find("dB/oct") != std::string::npos);
+    const auto beforePresentation = p.sysex();
+    for (const auto& info : xt::parameters())
+    {
+        const auto family = xt::algorithmFamily(info);
+        if (family.empty()) continue;
+        const auto* selected = xt::selectedAlgorithm(p, info);
+        REQUIRE(selected != nullptr);
+        REQUIRE(selected->page >= 153);
+        if (info.offset == xt::algorithmTypeOffset(info))
+            REQUIRE(xt::algorithms(family).size() == static_cast<size_t>(info.maximum + 1));
+    }
+    REQUIRE(p.sysex() == beforePresentation);
+    REQUIRE(xt::parameter(slot.key).minimum == 12768);
+    REQUIRE(xt::parameter(slot.key).maximum == 52768);
+    REQUIRE(std::string(xt::algorithms("MFX")[41].name) == "Pseudo Stereo");
+    REQUIRE(std::string(xt::algorithms("Reverb")[10].name) == "Delay");
+    auto unknown = p;
+    unknown.data.at(0x6f * 128)[1] = 127;
+    REQUIRE(xt::selectedAlgorithm(unknown, slot) == nullptr);
+    REQUIRE(xt::selectedAlgorithm(xt::Patch(), slot) == nullptr);
 }

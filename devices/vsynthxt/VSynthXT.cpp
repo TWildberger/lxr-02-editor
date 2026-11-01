@@ -1,5 +1,4 @@
 #include "VSynthXT.h"
-#include "kitforge/SysEx.h"
 #include <algorithm>
 #include <memory>
 #include <sqlite3.h>

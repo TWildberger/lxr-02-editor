@@ -5,7 +5,7 @@ juce_add_plugin(VSynthXT
     PLUGIN_CODE Vsxt
     PRODUCT_NAME "V-Synth XT Companion"
     DESCRIPTION "Independent hardware editor and librarian for Roland V-Synth XT"
-    FORMATS ${KITFORGE_FORMATS}
+    FORMATS ${COMPANION_FORMATS}
     IS_SYNTH TRUE
     NEEDS_MIDI_INPUT TRUE
     NEEDS_MIDI_OUTPUT TRUE
@@ -31,7 +31,7 @@ if(APPLE)
     endforeach()
 endif()
 
-if(KITFORGE_BUILD_TESTS)
+if(VSYNTHXT_BUILD_TESTS)
     juce_add_console_app(VSynthXTSmokeTest PRODUCT_NAME "VSynthXTSmokeTest")
     target_sources(VSynthXTSmokeTest PRIVATE SmokeTest.cpp ${XT_SOURCES})
     target_compile_definitions(VSynthXTSmokeTest PRIVATE
@@ -41,4 +41,17 @@ if(KITFORGE_BUILD_TESTS)
     add_test(NAME vsynthxt_smoke COMMAND VSynthXTSmokeTest)
     set_tests_properties(vsynthxt_smoke PROPERTIES
         ENVIRONMENT "VSYNTHXT_LIBRARY_PATH=${CMAKE_CURRENT_BINARY_DIR}/smoke-library.sqlite")
+
+    juce_add_console_app(VSynthXTVST3Test PRODUCT_NAME "VSynthXTVST3Test")
+    target_sources(VSynthXTVST3Test PRIVATE VST3Test.cpp)
+    target_compile_definitions(VSynthXTVST3Test PRIVATE
+        JUCE_PLUGINHOST_VST3=1 JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0
+        JUCE_REPORT_APP_USAGE=0 JUCE_STRICT_REFCOUNTEDPOINTER=1)
+    target_link_libraries(VSynthXTVST3Test PRIVATE vsynthxt_core juce::juce_audio_utils)
+    add_dependencies(VSynthXTVST3Test VSynthXT_VST3)
+    get_target_property(XT_VST3_ARTEFACT VSynthXT_VST3 JUCE_PLUGIN_ARTEFACT_FILE)
+    add_test(NAME vsynthxt_vst3_host COMMAND VSynthXTVST3Test "${XT_VST3_ARTEFACT}")
+    set_tests_properties(vsynthxt_vst3_host PROPERTIES
+        TIMEOUT 60
+        ENVIRONMENT "VSYNTHXT_LIBRARY_PATH=${CMAKE_CURRENT_BINARY_DIR}/vst3-test-library.sqlite")
 endif()

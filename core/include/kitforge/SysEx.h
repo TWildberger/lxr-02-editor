@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "kitforge/Bytes.h"
+#include "companion/SysExAssembler.h"
 
 namespace kitforge
 {
@@ -31,18 +32,7 @@ uint8_t checksum(const uint8_t* data, size_t size);
 
 /** Splits a raw MIDI byte stream into complete F0..F7 messages; incomplete tails are kept for the next call.
     Real-time bytes (F8..FF) may interleave; any other status byte aborts the message. */
-class Assembler
-{
-public:
-    explicit Assembler(size_t maxLength = 4096) : maxLength_(maxLength) {}
-    std::vector<Bytes> feed(const uint8_t* data, size_t size);
-    void reset() { buf_.clear(); inSysex_ = false; }
-
-private:
-    size_t maxLength_;
-    Bytes buf_;
-    bool inSysex_ = false;
-};
+using Assembler = companion::SysExAssembler;
 } // namespace sysex
 
 /**

@@ -1,5 +1,6 @@
 #pragma once
 #include "Processor.h"
+#include "Algorithms.h"
 
 namespace vsynthxt
 {
@@ -22,7 +23,9 @@ private:
         const Parameter& info;
         juce::Label label, raw;
         juce::Slider slider;
+        juce::ComboBox type;
         std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> attachment;
+        std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> typeAttachment;
     };
     void changeListenerCallback(juce::ChangeBroadcaster*) override;
     void rebuildSections();
@@ -30,6 +33,8 @@ private:
     Processor& proc_;
     juce::ComboBox group_, zone_, section_;
     juce::Label warning_;
+    juce::TextEditor algorithmReference_;
+    juce::HyperlinkButton manual_ {"Official algorithm reference", juce::URL()};
     juce::Viewport viewport_;
     juce::Component content_;
     std::vector<std::unique_ptr<Row>> rows_;

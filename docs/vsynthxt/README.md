@@ -1,7 +1,8 @@
 # V-Synth XT Companion
 
-An independent hardware editor and patch librarian, built alongside KitForge as
+An independent hardware editor and patch librarian, available as
 **V-Synth XT Companion** (VST3, AU and standalone). It does not emulate the XT.
+It needs V-Synth XT hardware, **not an LXR-02 or KitForge installation**.
 Roland and V-Synth are trademarks of their respective owner; this project is not
 affiliated with or endorsed by Roland.
 
@@ -34,7 +35,7 @@ Available workflows:
 
 There are no user-slot writes, system writes, program changes or automatic
 connect/recall sends. Continuous knob-to-hardware automation, other parts,
-user-slot browsing, algorithm-specific effect/COSM parameter labeling, VC-1/VC-2, sample/project
+user-slot browsing, algorithm-specific numbered effect/COSM slot bindings, VC-1/VC-2, sample/project
 management and audio streaming are not implemented in this milestone.
 
 ## Native parameter pages
@@ -58,7 +59,27 @@ python3 tools/gen_vsynthxt_params.py --check
 
 This is a protocol-level native editor, not a finished recreation of the XT's
 screen. Fields labeled **wire** expose numeric protocol codes; envelope/LFO sync
-values 128-144 remain numeric codes. COSM/effect numbered parameters use the
+values 128-144 remain numeric codes. The Native page provides named algorithm
+selectors for both COSMs in every zone (codes 0-16), MFX (1-41), chorus (1-8)
+and reverb (1-10). Code 0 for effects remains explicitly unnamed: the numbered
+owner-manual lists do not establish an algorithm name for it. Unknown raw codes
+are displayed explicitly and disabled, never silently replaced.
+
+A read-only algorithm reference and link to the official owner's manual show
+selected semantic names, units and ranges; this is not an editable slot mapping.
+References use printed pages 153, 159-163 (COSM), 164-185 (MFX), 186 (chorus)
+and 186-191 (reverb) of
+[Roland's V-Synth XT Owner's Manual](https://static.roland.com/assets/media/pdf/V-SYNTH_XT_OM.pdf).
+For example, TVF cutoff/resonance are 0-127, chorus rate is 0.05-10 Hz or notes,
+and reverb Delay time is 0-1300 ms in MONO or 0-650 ms in STEREO/ALTERNATE,
+or notes. The source link covers the complete table where only a subset is
+summarized. The PDF page index is one greater than the printed page.
+
+**Unresolved mapping:** matrix-control destination markers (`#1`/`#2`, or
+MFX1-MFX3) and screen-table ordering do not establish numbered SysEx slot
+indices or their physical-value conversion/lookup tables. Those numbered
+controls therefore retain generic labels, with no guessed units or narrowed
+ranges. COSM/effect numbered parameters use the MIDI implementation's
 manual's generic -20000..20000 representation, not algorithm-specific names,
 units or ranges. Their meaning depends on the selected type. Changing type does
 not initialize its other parameter bytes. Consult the XT manual before sending
@@ -128,30 +149,74 @@ favorite status, then archive the current patch again.
 
 ## Build and checks
 
-Use the repository's normal CMake build. JUCE is fetched once for both products.
+### XT-only build and distribution
+
+From this repository root, use the dedicated preset:
 
 ```sh
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --target VSynthXT_VST3 VSynthXT_AU VSynthXT_Standalone vsynthxt_tests VSynthXTSmokeTest -j6
-ctest --test-dir build -R 'XT|vsynthxt' --output-on-failure
+cmake --preset vsynthxt
+cmake --build --preset vsynthxt -j6
+ctest --preset vsynthxt
+cpack --config build-xt/CPackConfig.cmake -B build-xt/packages
 ```
 
 Artifacts are in
-`build/plugin/vsynthxt/VSynthXT_artefacts/Release/{VST3,AU,Standalone}`.
+`build-xt/plugin/vsynthxt/VSynthXT_artefacts/Release/{VST3,AU,Standalone}`.
+The XT archive in `build-xt/packages` contains only those XT bundles, the XT
+readme and license, separated into format folders. No KitForge bundle, LXR
+schema/asset, test executable, library database or captured patch is shipped.
+Extract/run the standalone without installing KitForge; plug-in installation,
+if desired, is a separate user action for the format/host you choose.
+
+For explicit local staging (not system/user plug-in installation):
+`cmake --install build-xt --component VSynthXT --prefix "$PWD/build-xt/stage"`.
+In a combined build, the `VSynthXT` and `KitForge` components remain independently
+selectable, and CPack produces separate product archives. The `kitforge` preset
+provides the equivalent LXR-only build in `build-lxr`.
+
 macOS bundles receive an ad-hoc development signature after their resources have
 been generated; they are not notarized distribution packages. Building does not
 install plug-ins or launch the standalone app.
 
-`VSYNTHXT_BUILD_PLUGIN` enables this product independently.
-Its default follows `KITFORGE_BUILD_PLUGIN`, preserving the existing core-only
-build command. To build only the XT plug-in, configure with
-`-DKITFORGE_BUILD_PLUGIN=OFF -DVSYNTHXT_BUILD_PLUGIN=ON`.
+The preset sets all `KITFORGE_BUILD_{CORE,PLUGIN,TESTS}` options OFF and
+`VSYNTHXT_BUILD_{CORE,PLUGIN,TESTS}` ON. These switches can also be passed
+individually to CMake. `VSYNTHXT_BUILD_TESTS=OFF` omits test dependencies and
+executables for a release-only build. Core targets can be built without JUCE by
+disabling each product's plug-in switch. The default unqualified build preserves
+both products and existing KitForge behavior.
+
+**Remaining shared build-time sources:** the repository's CMake entry point and
+packaging helper, a device-neutral header-only MIDI SysEx assembler, JUCE,
+SQLite (system library or amalgamation), and Catch2/nlohmann JSON/Python for
+tests/schema checks. XT does not compile/link `kitforge_core`, include LXR
+headers, or require its firmware tables, fixtures or runtime assets. SQLite
+linkage is generic, but XT and KitForge still use separate database paths and
+unchanged product IDs/settings/state/automation. This is independent
+build/distribution from one repository, not a newly created repository.
 
 The tests cover independent Roland message vectors, block-schema consistency,
 address carries, corruption, fragments/realtime bytes, raw snapshot/library
 round trips, DAW recall, initial editor rendering, cancellation, stopped-host
 expiry and a fake XT's full fetch/send/readback. These are **not hardware tests**.
-The smoke test uses a build-directory database rather than your personal library.
+`vsynthxt_smoke` instantiates the shared processor/editor directly, not the
+VST3 bundle. It also checks malformed XML, unsupported versions and corrupt
+patch/A-B encodings: errors retain the prior local state and cancel queued
+fake host transfers without MIDI output.
+
+`vsynthxt_vst3_host` **loads the actual built VST3 bundle** using a small JUCE
+test host compiled from existing dependencies. It checks the 4,975 XT parameter
+names/order (separately from wrapper bypass/MIDI-controller proxies), complete
+fixture loading, type-independent coarse automation's exact patch-byte change,
+state/raw-byte recall into a second instance, 48/44.1 kHz processing at small
+block sizes, silent audio/MIDI on construction and recall, and editor
+creation/rendering. Its synthetic state does not contain MIDI routing, and it
+does not open an audio device, send notes, configure real MIDI ports, or install
+the bundle. Run it with `ctest --test-dir build-xt -R '^vsynthxt_vst3_host$' -V`.
+This focused host check is **not** a comprehensive SDK/pluginval conformance
+suite, a standalone live UI Fetch test, AU validation, or Logic/Ableton testing.
+
+The smoke and VST3 host tests use build-directory databases rather than your
+personal library.
 For explicitly authorized hardware diagnostics, the same executable supports
 `--list-midi` (enumeration only) and
 `--fetch-native inputID outputID deviceID newBackup.syx` (RQ1 reads only).

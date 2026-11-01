@@ -69,44 +69,6 @@ uint8_t checksum(const uint8_t* data, size_t size)
     return x & 0x7F;
 }
 
-std::vector<Bytes> Assembler::feed(const uint8_t* data, size_t size)
-{
-    std::vector<Bytes> out;
-    for (size_t i = 0; i < size; ++i)
-    {
-        const uint8_t b = data[i];
-        if (b == 0xF0)
-        {
-            buf_.assign(1, b);
-            inSysex_ = true;
-        }
-        else if (!inSysex_)
-            continue;
-        else if (b == 0xF7)
-        {
-            buf_.push_back(b);
-            out.push_back(buf_);
-            buf_.clear();
-            inSysex_ = false;
-        }
-        else if (b >= 0xF8)
-            continue; // realtime bytes may interleave
-        else if (b & 0x80)
-        {
-            buf_.clear(); // any other status byte aborts the message
-            inSysex_ = false;
-        }
-        else if (buf_.size() >= maxLength_)
-        {
-            buf_.clear(); // oversized: drop and resync at the next F0
-            inSysex_ = false;
-        }
-        else
-            buf_.push_back(b);
-    }
-    return out;
-}
-
 } // namespace sysex
 
 namespace ext

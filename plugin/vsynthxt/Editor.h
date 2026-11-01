@@ -42,9 +42,11 @@ private:
     juce::TextEditor name_, query_, tagsText_, notes_;
     juce::ToggleButton favorite_ {"Favorite"};
     juce::ComboBox entries_;
-    std::array<juce::Slider, 3> sliders_;
+    std::array<juce::Slider, 2> sliders_;
     std::array<juce::Label, 3> labels_;
-    std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>, 3> attachments_;
+    std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>, 2> attachments_;
+    juce::ComboBox chorusType_;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> chorusAttachment_;
     std::vector<juce::MidiDeviceInfo> ins_, outs_;
     std::vector<Entry> rows_;
     std::unique_ptr<juce::FileChooser> chooser_;
